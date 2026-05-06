@@ -1,0 +1,490 @@
+/**
+ * JSON-LD Manager - Backend Styles
+ * 
+ * Styling für das Backend-Interface des JSON-LD Managers
+ * 
+ * @package JsonldManager
+ * @version 1.0.0
+ */
+
+/* === GLOBAL STYLES === */
+.jsonld-overview {
+    font-family: 'Open Sans', sans-serif;
+}
+
+.jsonld-overview .panel-title {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.jsonld-overview .panel-title .text-muted {
+    font-size: 14px;
+    font-weight: normal;
+}
+
+/* === FILTER STYLES === */
+.jsonld-filters {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+}
+
+.jsonld-filters .form-group {
+    margin-right: 15px;
+    margin-bottom: 10px;
+}
+
+.jsonld-filters label {
+    font-weight: 600;
+    margin-right: 5px;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #6c757d;
+}
+
+.jsonld-filters .form-control {
+    width: auto;
+    min-width: 120px;
+    font-size: 13px;
+}
+
+.jsonld-filters .btn {
+    margin-right: 5px;
+}
+
+/* === BULK ACTIONS === */
+.bulk-actions {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 12px 15px;
+}
+
+.bulk-actions select {
+    margin-right: 10px;
+    border-radius: 4px;
+}
+
+.bulk-actions .selected-count {
+    background: #007bff;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+/* === TABLE STYLES === */
+.jsonld-overview .table {
+    font-size: 13px;
+    margin-bottom: 0;
+}
+
+.jsonld-overview .table th {
+    background: #f8f9fa;
+    border-top: 2px solid #007bff;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #495057;
+    padding: 12px 8px;
+}
+
+.jsonld-overview .table td {
+    padding: 10px 8px;
+    vertical-align: middle;
+    border-color: #e9ecef;
+}
+
+.jsonld-overview .table tr:hover {
+    background-color: #f8f9fa;
+}
+
+.jsonld-overview .table tr.success {
+    background-color: rgba(40, 167, 69, 0.05);
+}
+
+.jsonld-overview .table tr.warning {
+    background-color: rgba(255, 193, 7, 0.05);
+}
+
+/* === LABELS & BADGES === */
+.jsonld-overview .label {
+    font-size: 10px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.jsonld-overview .label-success {
+    background-color: #28a745;
+    color: white;
+}
+
+.jsonld-overview .label-default {
+    background-color: #6c757d;
+    color: white;
+}
+
+.jsonld-overview .label-warning {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.jsonld-overview .label-info {
+    background-color: #17a2b8;
+    color: white;
+}
+
+/* === BUTTON GROUPS === */
+.jsonld-overview .btn-group-xs .btn {
+    padding: 3px 6px;
+    font-size: 11px;
+    border-radius: 3px;
+}
+
+.jsonld-overview .btn-group .btn {
+    border-right: 1px solid rgba(0,0,0,0.1);
+}
+
+.jsonld-overview .btn-group .btn:last-child {
+    border-right: none;
+}
+
+/* === PAGINATION === */
+.jsonld-overview .pagination {
+    margin: 20px 0 10px 0;
+}
+
+.jsonld-overview .pagination .page-link {
+    font-size: 13px;
+    padding: 6px 12px;
+}
+
+/* === JSON-LD PREVIEW === */
+.jsonld-preview {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 15px;
+}
+
+.jsonld-preview h5 {
+    margin-top: 0;
+    color: #495057;
+    font-weight: 600;
+}
+
+.jsonld-preview pre {
+    background: #212529;
+    color: #e9ecef;
+    padding: 15px;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.4;
+    overflow-x: auto;
+    margin-bottom: 0;
+}
+
+.jsonld-preview .validation-result {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.jsonld-preview .validation-result.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.jsonld-preview .validation-result.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+/* === SCHEMA CONFIGURATION === */
+.schema-config {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 20px;
+}
+
+.schema-config .form-group {
+    margin-bottom: 20px;
+}
+
+.schema-config .form-group label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 5px;
+}
+
+.schema-config .property-mapping {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+.schema-config .property-mapping .property-name {
+    font-weight: 600;
+    color: #007bff;
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 13px;
+}
+
+.schema-config .add-property {
+    background: #e9f7ef;
+    border: 2px dashed #28a745;
+    color: #28a745;
+    text-align: center;
+    padding: 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.schema-config .add-property:hover {
+    background: #d4edda;
+    border-color: #1e7e34;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+    .jsonld-filters .form-group {
+        margin-right: 0;
+        margin-bottom: 15px;
+    }
+    
+    .jsonld-filters .form-control {
+        width: 100%;
+        min-width: auto;
+    }
+    
+    .bulk-actions select,
+    .bulk-actions button {
+        margin-bottom: 5px;
+        width: auto;
+    }
+    
+    .jsonld-overview .table-responsive {
+        border: none;
+    }
+    
+    .jsonld-overview .btn-group {
+        display: block;
+    }
+    
+    .jsonld-overview .btn-group .btn {
+        display: block;
+        margin-bottom: 2px;
+        border-radius: 3px !important;
+    }
+}
+
+/* === LOADING STATES === */
+.jsonld-loading {
+    position: relative;
+}
+
+.jsonld-loading:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.8);
+    z-index: 1000;
+}
+
+.jsonld-loading:after {
+    content: 'Loading...';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #007bff;
+    color: white;
+    padding: 8px 15px;
+    border-radius: 4px;
+    font-size: 12px;
+    z-index: 1001;
+}
+
+/* === DARK MODE SUPPORT === */
+@media (prefers-color-scheme: dark) {
+    .jsonld-overview {
+        color: #e9ecef;
+    }
+    
+    .jsonld-filters {
+        background: #343a40;
+        border-color: #495057;
+    }
+    
+    .bulk-actions {
+        background: linear-gradient(135deg, #343a40 0%, #495057 100%);
+        border-color: #6c757d;
+    }
+    
+    .jsonld-overview .table th {
+        background: #495057;
+        border-color: #6c757d;
+        color: #e9ecef;
+    }
+    
+    .jsonld-overview .table td {
+        border-color: #495057;
+        color: #e9ecef;
+    }
+    
+    .jsonld-overview .table tr:hover {
+        background-color: #495057;
+    }
+}
+
+/* === PRINT STYLES === */
+@media print {
+    .jsonld-filters,
+    .bulk-actions,
+    .jsonld-overview .btn,
+    .pagination {
+        display: none !important;
+    }
+    
+    .jsonld-overview .table {
+        font-size: 10px;
+    }
+    
+    .jsonld-overview .table th,
+    .jsonld-overview .table td {
+        padding: 4px;
+    }
+}
+
+/* === ARTICLE JSON-LD PAGE HARDENING === */
+.article-table .article-row {
+    cursor: pointer;
+}
+
+.article-table .article-row.active,
+.article-table .article-row.active:hover {
+    background-color: #256ea8;
+}
+
+.article-table .article-row.active td,
+.article-table .article-row.active:hover td {
+    background-color: #256ea8 !important;
+}
+
+.article-table .article-row.active .article-name,
+.article-table .article-row.active .article-path,
+.article-table .article-row.active:hover .article-name,
+.article-table .article-row.active:hover .article-path {
+    background: transparent !important;
+}
+
+.article-table .article-row.active .article-icons,
+.article-table .article-row.active .article-status,
+.article-table .article-row.active:hover .article-icons,
+.article-table .article-row.active:hover .article-status {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+.article-table .article-row.active .article-icons *,
+.article-table .article-row.active .article-status *,
+.article-table .article-row.active:hover .article-icons *,
+.article-table .article-row.active:hover .article-status * {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+.article-table td.text-right .article-icons,
+.article-table td.text-right .article-status {
+    margin-right: 6px;
+}
+
+.article-table td.text-right .article-icons {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.article-table td.text-right .article-status {
+    display: inline-flex;
+    align-items: center;
+}
+
+.article-table .article-row.active .article-name,
+.article-table .article-row.active .article-path,
+.article-table .article-row.active .article-status i {
+    color: #ffffff !important;
+}
+
+.article-table .article-name {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.article-table .article-path {
+    display: block;
+    font-size: 11px;
+    line-height: 1.35;
+    color: #9db0bf;
+}
+
+.article-table .article-row[class*="article-level-"] .article-name,
+.article-table .article-row[class*="article-level-"] .article-path {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 2px;
+}
+
+.article-table .article-row.article-level-1 .article-name,
+.article-table .article-row.article-level-1 .article-path {
+    padding-left: 12px;
+}
+
+.article-table .article-row.article-level-2 .article-name,
+.article-table .article-row.article-level-2 .article-path {
+    padding-left: 24px;
+}
+
+.article-table .article-row.article-level-3 .article-name,
+.article-table .article-row.article-level-3 .article-path {
+    padding-left: 36px;
+}
+
+.article-table .article-row.article-level-4 .article-name,
+.article-table .article-row.article-level-4 .article-path {
+    padding-left: 48px;
+}
+
+.jsonld-preview-sticky #json-preview {
+    background: #e6e6e8;
+    color: #2e3238;
+    border: 1px solid #c6c8cc;
+    border-radius: 4px;
+    padding: 14px;
+    min-height: 260px;
+    max-height: calc(100vh - 170px);
+    overflow: auto;
+    font-size: 12px;
+    line-height: 1.45;
+    font-family: Monaco, Menlo, monospace;
+    margin-bottom: 12px;
+}

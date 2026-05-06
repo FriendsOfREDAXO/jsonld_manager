@@ -1,0 +1,174 @@
+<?php
+
+/**
+ * JSON-LD Manager AddOn - Boot
+ * 
+ * Initialisierung und Extension Points für das JSON-LD Manager AddOn
+ */
+
+// Template-Funktionen laden
+require_once __DIR__ . '/lib/template_functions.php';
+
+// JSON-LD Generator-Klasse laden
+require_once __DIR__ . '/lib/JsonLdGenerator.php';
+require_once __DIR__ . '/lib/LanguageConfig.php';
+require_once __DIR__ . '/lib/DynamicJsonLd.php';
+
+// Backend CSS und JS einbinden
+if (rex::isBackend() && rex_be_controller::getCurrentPagePart(1) == 'jsonld_manager') {
+    rex_view::addCssFile($this->getAssetsUrl('css/jsonld_manager.css'));
+    rex_view::addJsFile($this->getAssetsUrl('js/jsonld_manager.js'));
+}
+
+// Nur im Frontend
+if (!rex::isBackend() && rex_addon::get('jsonld_manager')->isAvailable()) {
+    // Extension Point für automatische JSON-LD Ausgabe
+    rex_extension::register('OUTPUT_FILTER', function (rex_extension_point $ep) {
+        $content = $ep->getSubject();
+        if (strpos($content, '</head>') !== false) {
+            $article = rex_article::getCurrent();
+            if (!$article || !function_exists('jsonld_is_template_output_allowed') || !jsonld_is_template_output_allowed($article)) {
+                return $content;
+            }
+
+            $jsonLdOutput = '';
+            $dynamicJsonLdOutput = '';
+            
+            // Prüfe ob es eine dynamische URL ist (URL-Addon)
+            if (rex_addon::get('url')->isAvailable()) {
+                try {
+                    $urlManager = \Url\Url::resolveCurrent();
+                    
+                    if ($urlManager) {
+                        // Dynamische URL erkannt - JSON-LD für URL-Profil generieren
+                        $profileId = $urlManager->getProfileId();
+                        $dataId = $urlManager->getDatasetId();
+                        
+                        if ($profileId && $dataId) {
+                            $dynamicJsonLdOutput = generateDynamicJsonLd($profileId, $dataId);
+                        }
+                    }
+                } catch (Exception $e) {
+                    // Fehler beim URL-Parsing ignorieren
+                }
+            }
+            
+            // Standard JSON-LD immer zusätzlich ausgeben
+            $jsonLdOutput .= jsonld_render();
+            // Dynamisches URL-JSON-LD zusätzlich anhängen (falls vorhanden)
+            $jsonLdOutput .= $dynamicJsonLdOutput;
+            
+            if (!empty($jsonLdOutput)) {
+                $content = str_replace('</head>', $jsonLdOutput . '</head>', $content);
+            }
+        }
+        return $content;
+    });
+}
+
+// Extension Point für Cache-Invalidierung bei Artikel-Änderungen
+rex_extension::register('ART_UPDATED', function($ep) {
+    if (class_exists('\FriendsOfRedaxo\JsonLdManager\Frontend\Renderer')) {
+        $articleId = 0;
+        $params = $ep->getParams();
+
+        if (isset($params['id'])) {
+            $articleId = (int) $params['id'];
+        } elseif (isset($params['article_id'])) {
+            $articleId = (int) $params['article_id'];
+        }
+
+        \FriendsOfRedaxo\JsonLdManager\Frontend\Renderer::clearCache($articleId > 0 ? $articleId : null);
+    }
+});
+
+// Bedingte Menüanzeige für Dynamische URLs
+if (rex::isBackend()) {
+    // CSS-Datei im Backend laden
+    rex_view::addCssFile(rex_url::addonAssets('jsonld_manager', 'jsonld_manager.css'));
+    // JS-Datei im Backend laden (u.a. für Select Live-Suche)
+    rex_view::addJsFile(rex_url::addonAssets('jsonld_manager', 'js/jsonld_manager.js'));
+    
+    $hideDynamicUrlsSubpage = static function (): void {
+        $filter = static function ($page) {
+            if (!$page || !method_exists($page, 'getSubpages') || !method_exists($page, 'setSubpages')) {
+                return;
+            }
+
+            $subpages = $page->getSubpages();
+            if (!is_array($subpages)) {
+                return;
+            }
+
+            foreach ($subpages as $key => $subpage) {
+                $subpageKey = method_exists($subpage, 'getKey') ? (string) $subpage->getKey() : (string) $key;
+                $subpageFullKey = method_exists($subpage, 'getFullKey') ? (string) $subpage->getFullKey() : '';
+                if ($subpageKey === 'dynamic_urls' || $subpageFullKey === 'jsonld_manager/dynamic_urls') {
+                    unset($subpages[$key]);
+                }
+            }
+
+            $page->setSubpages($subpages);
+        };
+
+        // Root-Page absichern
+        $filter(rex_be_controller::getPageObject('jsonld_manager'));
+
+        // Aktuelle Navigation (inkl. Parent) absichern
+        $current = rex_be_controller::getCurrentPageObject();
+        if ($current) {
+            $filter($current);
+            if (method_exists($current, 'getParent')) {
+                $filter($current->getParent());
+            }
+        }
+    };
+
+    $shouldHideDynamicUrls = static function (): bool {
+        if (!rex_addon::get('url')->isAvailable()) {
+            return true;
+        }
+        $profileCount = rex_sql::factory()->getArray('SELECT COUNT(*) as count FROM ' . rex::getTable('url_generator_profile'));
+        return !$profileCount || (int) $profileCount[0]['count'] === 0;
+    };
+
+    // Harte UI-Fallback-Ausblendung, falls REDAXO-Navigation den Tab dennoch rendert
+    if ($shouldHideDynamicUrls()) {
+        rex_view::addCssFile(rex_url::addonAssets('jsonld_manager', 'css/hide_dynamic_urls_tab.css'));
+    }
+
+    rex_extension::register('PACKAGES_INCLUDED', function() use ($hideDynamicUrlsSubpage, $shouldHideDynamicUrls) {
+        if ($shouldHideDynamicUrls()) {
+            $hideDynamicUrlsSubpage();
+        }
+    });
+
+    rex_extension::register('PAGE_PREPARED', function() use ($hideDynamicUrlsSubpage, $shouldHideDynamicUrls) {
+        if (!$shouldHideDynamicUrls()) {
+            return;
+        }
+
+        $hideDynamicUrlsSubpage();
+
+        // Direkter Aufruf der Seite verhindern, wenn sie nicht verfügbar ist
+        $requestedPage = rex_request('page', 'string');
+        if ($requestedPage === 'jsonld_manager/dynamic_urls') {
+            rex_response::sendRedirect(rex_url::backendPage('jsonld_manager/article'));
+        }
+    });
+}
+
+rex_extension::register('ART_DELETED', function($ep) {
+    if (class_exists('\FriendsOfRedaxo\JsonLdManager\Frontend\Renderer')) {
+        $articleId = 0;
+        $params = $ep->getParams();
+
+        if (isset($params['id'])) {
+            $articleId = (int) $params['id'];
+        } elseif (isset($params['article_id'])) {
+            $articleId = (int) $params['article_id'];
+        }
+
+        \FriendsOfRedaxo\JsonLdManager\Frontend\Renderer::clearCache($articleId > 0 ? $articleId : null);
+    }
+});

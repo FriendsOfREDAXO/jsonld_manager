@@ -1,0 +1,193 @@
+# JSON-LD Manager - English Language File
+
+# === NAVIGATION ===
+jsonld_manager = JSON-LD Managerjsonld_manager_overview = Page Overview
+jsonld_manager_schemas = Schema Mapping
+jsonld_manager_mappings = Mapping Configuration
+jsonld_manager_url_rules = URL Rules
+jsonld_manager_settings = Settings
+jsonld_manager_info = Info
+jsonld_manager_help = Help & Documentation
+jsonld_manager_changelog = Changelog
+jsonld_manager_license = License
+
+# === LEGACY (if still used) ===overview = Page Overview
+schemas = Schema Assignment
+mappings = Mapping Configuration
+url_rules = URL Rules
+settings = Settings
+help = Help & Documentation
+
+# === GENERAL ===
+active = Active
+inactive = Inactive
+enable = Enable
+disable = Disable
+edit = Edit
+delete = Delete
+save = Save
+cancel = Cancel
+back = Back
+next = Next
+preview = Preview
+validate = Validate
+refresh = Refresh
+search = Search
+filter = Filter
+reset = Reset
+export = Export
+import = Import
+
+# === SCHEMA TYPES ===
+schema_webpage = Web Page
+schema_product = Product
+schema_organization = Organization
+schema_faq = FAQ Page
+schema_itemlist = Item List
+schema_breadcrumb = Breadcrumb List
+
+# === PAGE OVERVIEW ===
+overview_title = JSON-LD Page Overview
+overview_description = Central overview of all REDAXO articles with JSON-LD status and management options.
+article_count = {0} articles found
+no_articles_found = No articles found
+all_templates = -- All Templates --
+all_languages = -- All Languages --
+all_status = All Status
+online = Online
+offline = Offline
+jsonld_active = JSON-LD Active
+jsonld_inactive = JSON-LD Inactive
+bulk_actions = Selected Articles
+select_action = -- Select Action --
+assign_schema = Assign Schema
+deactivate_schemas = Deactivate Schemas
+execute_action = Execute
+selected_count = {0} selected
+confirm_bulk_action = Do you want to execute "{0}" for {1} articles?
+last_modified = Last Modified
+actions = Actions
+manage_schema = Manage Schema
+manage_url_rules = Manage URL Rules
+preview_jsonld = JSON-LD Preview
+
+# === SCHEMA ASSIGNMENT ===
+schemas_title = Schema Assignment
+schemas_description = Assign and configure schema types to individual articles.
+create_schema = Create New Schema
+edit_schema = Edit Schema
+schema_type = Schema Type
+schema_priority = Priority
+schema_config = Configuration
+schema_created = Schema created successfully
+schema_updated = Schema updated successfully
+schema_deleted = Schema deleted successfully
+no_schemas_found = No schemas found
+multiple_schemas_info = Multiple schemas per article possible. Lower priority = higher importance.
+
+# === MAPPING ===
+mapping_title = Mapping Configuration
+mapping_description = Map schema properties to various data sources.
+property_name = Property Name
+data_source = Data Source
+fallback_source = Fallback Source
+required_field = Required Field
+transform_function = Transform Function
+mapping_preview = Live Preview
+mapping_saved = Mapping saved successfully
+invalid_json = Invalid JSON
+missing_required_field = Required field missing: {0}
+
+# === DATA SOURCES ===
+source_article_name = Article Name
+source_article_teaser = Article Teaser
+source_seo_title = SEO Title (YRewrite)
+source_meta_description = Meta Description
+source_canonical_url = Canonical URL
+source_media_field = Media Field
+source_get_param = GET Parameter
+source_custom_field = Custom Field
+source_static = Static Value
+source_computed = Computed Value
+
+# === URL RULES ===
+url_rules_title = URL Rules
+url_rules_description = Dynamic URL patterns for schema assignment with GET parameters.
+create_rule = Create New URL Rule
+edit_rule = Edit URL Rule
+rule_name = Rule Name
+rule_pattern = URL Pattern (Regex)
+get_parameters = GET Parameters
+rule_schema_config = Schema Configuration
+rule_test = Test Rule
+test_url = Test URL
+test_parameters = Test Parameters
+test_result = Test Result
+rule_match = Rule Match
+rule_no_match = No Match
+rule_error = Rule Error
+rule_created = URL rule created successfully
+rule_updated = URL rule updated successfully
+rule_deleted = URL rule deleted successfully
+no_rules_found = No URL rules found
+
+# === SETTINGS ===
+settings_title = Settings
+settings_description = Global configuration of the JSON-LD Manager.
+auto_output = Automatic Frontend Output
+cache_enabled = Cache Enabled
+debug_mode = Debug Mode
+output_position = Output Position
+head_start = Beginning <head>
+head_end = End <head>
+get_params_whitelist = GET Parameters Whitelist
+media_types = Allowed Media Manager Types
+organization_data = Organization Data
+organization_name = Name
+organization_url = Website
+organization_logo = Logo
+settings_saved = Settings saved successfully
+
+# === HELP ===
+help_title = Help & Documentation
+help_description = Documentation and examples for the JSON-LD Manager.
+template_integration = Template Integration
+api_reference = API Reference
+examples = Examples
+faq = Frequently Asked Questions
+support = Support
+
+# === ERRORS ===
+error_general = An error occurred
+error_save = Error saving
+error_delete = Error deleting
+error_invalid_data = Invalid data
+error_permission = No permission
+error_not_found = Not found
+error_invalid_json = Invalid JSON format
+error_invalid_regex = Invalid regular expression
+error_whitelist_violation = Parameter not in whitelist
+error_missing_yrewrite = YRewrite AddOn is required
+error_missing_media_manager = Media Manager AddOn is required
+
+# === SUCCESS ===
+success_created = Successfully created
+success_updated = Successfully updated
+success_deleted = Successfully deleted
+success_saved = Successfully saved
+success_bulk_action = Bulk action executed successfully
+
+# === INSTALLATION ===
+install_success = JSON-LD Manager installed successfully
+install_database_created = Database tables created
+install_config_loaded = Default configuration loaded
+install_default_schema = Default WebPage schema created
+install_integration_active = Integration activated
+
+# === TEMPLATE INTEGRATION ===
+template_example_1 = Automatic output for current page
+template_example_2 = Manual output
+template_example_3 = Specific schema type
+template_example_4 = With GET parameters
+template_example_5 = Multiple schemas
+template_example_6 = Fallback to WebPage

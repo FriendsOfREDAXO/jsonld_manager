@@ -1,0 +1,197 @@
+# JSON-LD Manager - Deutsche Sprach-Datei
+
+jsonld_manager = JSON-LD Manager
+jsonld_manager_overview = Übersicht
+jsonld_manager_schemas = Schema-Zuordnung  
+jsonld_manager_settings = Einstellungen
+
+# === LEGACY (falls noch verwendet) ===
+overview = Seitenübersicht
+schemas = Schema-Zuordnung
+mappings = Mapping-Konfiguration
+url_rules = URL-Regeln
+settings = Einstellungen
+help = Hilfe & Dokumentation
+
+# === ALLGEMEIN ===
+active = Aktiv
+inactive = Inaktiv
+enable = Aktivieren
+disable = Deaktivieren
+edit = Bearbeiten
+delete = Löschen
+save = Speichern
+cancel = Abbrechen
+back = Zurück
+next = Weiter
+preview = Vorschau
+validate = Validieren
+refresh = Aktualisieren
+search = Suchen
+filter = Filtern
+reset = Zurücksetzen
+export = Exportieren
+import = Importieren
+
+# === SCHEMA-TYPES ===
+schema_webpage = Webseite
+schema_product = Produkt
+schema_organization = Organisation
+schema_faq = FAQ-Seite
+schema_itemlist = Item-Liste
+schema_breadcrumb = Breadcrumb-Liste
+
+# === SEITENÜBERSICHT ===
+overview_title = JSON-LD Seitenübersicht
+overview_description = Zentrale Übersicht aller REDAXO-Artikel mit JSON-LD Status und Verwaltungsmöglichkeiten.
+article_count = {0} Artikel gefunden
+no_articles_found = Keine Artikel gefunden
+all_templates = -- Alle Templates --
+all_languages = -- Alle Sprachen --
+all_status = Alle Status
+online = Online
+offline = Offline
+jsonld_active = JSON-LD Aktiv
+jsonld_inactive = JSON-LD Inaktiv
+bulk_actions = Ausgewählte Artikel
+select_action = -- Aktion wählen --
+assign_schema = Schema zuordnen
+deactivate_schemas = Schemas deaktivieren
+execute_action = Ausführen
+selected_count = {0} ausgewählt
+confirm_bulk_action = Möchten Sie "{0}" für {1} Artikel ausführen?
+last_modified = Letzte Änderung
+actions = Aktionen
+manage_schema = Schema verwalten
+manage_url_rules = URL-Regeln verwalten
+preview_jsonld = JSON-LD Vorschau
+
+# === SCHEMA-ZUORDNUNG ===
+schemas_title = Schema-Zuordnung
+schemas_description = Schema-Types einzelnen Artikeln zuordnen und konfigurieren.
+create_schema = Neues Schema erstellen
+edit_schema = Schema bearbeiten
+schema_type = Schema-Type
+schema_priority = Priorität
+schema_config = Konfiguration
+schema_created = Schema wurde erfolgreich erstellt
+schema_updated = Schema wurde erfolgreich aktualisiert
+schema_deleted = Schema wurde erfolgreich gelöscht
+no_schemas_found = Keine Schemas gefunden
+multiple_schemas_info = Mehrere Schemas pro Artikel möglich. Niedrigere Priorität = höhere Wichtigkeit.
+
+# === MAPPING ===
+mapping_title = Mapping-Konfiguration
+mapping_description = Schema-Properties den verschiedenen Datenquellen zuordnen.
+property_name = Property-Name
+data_source = Datenquelle
+fallback_source = Fallback-Quelle
+required_field = Pflichtfeld
+transform_function = Transform-Funktion
+mapping_preview = Live-Vorschau
+mapping_saved = Mapping wurde erfolgreich gespeichert
+invalid_json = Ungültiges JSON
+missing_required_field = Pflichtfeld fehlt: {0}
+
+# === DATENQUELLEN ===
+source_article_name = Artikel-Name
+source_article_teaser = Artikel-Teaser
+source_seo_title = SEO-Titel (YRewrite)
+source_meta_description = Meta-Beschreibung
+source_canonical_url = Kanonische URL
+source_media_field = Medienfeld
+source_get_param = GET-Parameter
+source_custom_field = Custom Field
+source_static = Statischer Wert
+source_computed = Berechneter Wert
+
+# === URL-REGELN ===
+url_rules_title = URL-Regeln
+url_rules_description = Dynamische URL-Pattern für Schema-Zuordnung mit GET-Parametern.
+create_rule = Neue URL-Regel
+edit_rule = URL-Regel bearbeiten
+rule_name = Regel-Name
+rule_pattern = URL-Pattern (Regex)
+get_parameters = GET-Parameter
+rule_schema_config = Schema-Konfiguration
+rule_test = Regel testen
+test_url = Test-URL
+test_parameters = Test-Parameter
+test_result = Test-Ergebnis
+rule_match = Regel-Match
+rule_no_match = Kein Match
+rule_error = Regel-Fehler
+rule_created = URL-Regel wurde erfolgreich erstellt
+rule_updated = URL-Regel wurde erfolgreich aktualisiert
+rule_deleted = URL-Regel wurde erfolgreich gelöscht
+no_rules_found = Keine URL-Regeln gefunden
+
+# === EINSTELLUNGEN ===
+settings_title = Einstellungen
+settings_description = Globale Konfiguration des JSON-LD Managers.
+auto_output = Automatische Frontend-Ausgabe
+cache_enabled = Cache aktiviert
+debug_mode = Debug-Modus
+output_position = Ausgabe-Position
+head_start = Anfang <head>
+head_end = Ende <head>
+get_params_whitelist = GET-Parameter Whitelist
+media_types = Erlaubte Media-Manager Types
+organization_data = Organisations-Daten
+organization_name = Name
+organization_url = Website
+organization_logo = Logo
+settings_saved = Einstellungen wurden erfolgreich gespeichert
+
+# === HILFE ===
+help_title = Hilfe & Dokumentation
+help_description = Dokumentation und Beispiele für den JSON-LD Manager.
+template_integration = Template-Integration
+api_reference = API-Referenz
+examples = Beispiele
+faq = Häufig gestellte Fragen
+support = Support
+
+# === ERRORS ===
+error_general = Ein Fehler ist aufgetreten
+error_save = Fehler beim Speichern
+error_delete = Fehler beim Löschen
+error_invalid_data = Ungültige Daten
+error_permission = Keine Berechtigung
+error_not_found = Nicht gefunden
+error_invalid_json = Ungültiges JSON-Format
+error_invalid_regex = Ungültiger regulärer Ausdruck
+error_whitelist_violation = Parameter nicht in Whitelist
+error_missing_yrewrite = YRewrite AddOn ist erforderlich
+error_missing_media_manager = Media Manager AddOn ist erforderlich
+
+# === SUCCESS ===
+success_created = Erfolgreich erstellt
+success_updated = Erfolgreich aktualisiert
+success_deleted = Erfolgreich gelöscht
+success_saved = Erfolgreich gespeichert
+success_bulk_action = Bulk-Aktion erfolgreich ausgeführt
+
+# === INSTALLATION ===
+install_success = JSON-LD Manager wurde erfolgreich installiert
+install_database_created = Datenbank-Tabellen erstellt
+install_config_loaded = Standard-Konfiguration geladen
+install_default_schema = Standard WebPage Schema angelegt
+install_integration_active = Integration aktiviert
+
+# === TEMPLATE INTEGRATION ===
+template_example_1 = Automatische Ausgabe für aktuelle Seite
+template_example_2 = Manuelle Ausgabe
+template_example_3 = Spezifischer Schema-Type
+template_example_4 = Mit GET-Parametern
+template_example_5 = Mehrere Schemas
+template_example_6 = Fallback zu WebPage
+
+jsonld_manager_dynamic_urls=Dynamische URLs
+jsonld_manager_dynamic_urls_title=Dynamische URL Profile
+jsonld_manager_dynamic_urls_profiles=URL Profile
+jsonld_manager_dynamic_urls_namespace=Namespace
+jsonld_manager_dynamic_urls_table_name=Tabelle
+jsonld_manager_dynamic_urls_no_profiles=Es wurden keine Profile im "URL"-Addon gefunden.
+jsonld_manager_function=Funktion
+jsonld_manager_edit=bearbeiten

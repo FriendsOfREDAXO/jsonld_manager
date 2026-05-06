@@ -1,0 +1,70 @@
+package: jsonld_manager
+version: '1.0.0-beta.11'
+author: 'Friends Of REDAXO'
+supportpage: https://github.com/FriendsOfREDAXO/jsonld_manager
+
+page:
+    title: JSON-LD Manager
+    icon: rex-icon fa-code
+    perm: jsonld_manager[]
+    subpages:
+        article:
+            title: Artikel
+            subPath: pages/article_jsonld.php
+        dynamic_urls:
+            title: Dynamische URLs
+            subPath: pages/dynamic_urls.php
+        settings_global:
+            title: Allgemeine Angaben
+            subpages:
+                schemas:
+                    title: Organization Schema
+                    subPath: pages/schemas.php
+                global_website:
+                    title: WebSite Schema
+                    subPath: pages/global_website.php
+                global_localbusiness:
+                    title: LocalBusiness Schema
+                    subPath: pages/global_localbusiness.php
+        info:
+            title: 'Info'
+            itemclass: pull-right
+            subpages:
+                help:
+                    title: Hilfe
+                    subPath: README.md
+                changelog:
+                    title: Changelog
+                    subPath: CHANGELOG.md
+                license:
+                    title: Lizenz
+                    subPath: LICENSE.md
+        settings:
+            title: Einstellungen
+            itemclass: pull-right
+            subPath: pages/settings.php
+            
+requires:
+    php: '>=8.3'
+    redaxo: '>=5.20.0'
+    addons:
+        yform: '>=5.0.1'
+suggests:
+    addons:
+        yrewrite: '>=1.12.0'
+default_config:
+    settings:
+        auto_output: true
+        cache_enabled: true
+        debug_mode: false
+    schemas:
+        default_type: 'WebPage'
+        enabled_types: ['WebPage', 'BreadcrumbList', 'Organization']
+installer_ignore:
+    - '.git'
+    - '.github'
+    - '.gitignore'
+    - '.DS_Store'
+    - '.idea'
+    - '.vscode'
+    - 'node_modules'
