@@ -62,7 +62,7 @@ if ($lbAction === 'create_branch') {
         
         $sql->setValues($branchValues);
         $sql->insert();
-        $message .= rex_view::success('Neue Filiale "' . htmlspecialchars($branchName) . '" wurde erstellt.');
+        $message .= rex_view::success('Neuer Standort "' . htmlspecialchars($branchName) . '" wurde erstellt.');
         $branchId = $sql->getLastId();
     }
     }
@@ -81,7 +81,7 @@ if ($lbAction === 'create_branch') {
     $sql->setQuery('SELECT branch_name, is_main_branch FROM ' . rex::getTable('jsonld_localbusiness_branches') . ' ' . $whereClause, $params);
     if ($sql->getRows() > 0) {
         if ($sql->getValue('is_main_branch')) {
-            $message .= rex_view::error('Die Hauptfiliale kann nicht gelöscht werden. Setzen Sie zuerst eine andere Filiale als Hauptfiliale.');
+            $message .= rex_view::error('Der Hauptstandort kann nicht gelöscht werden. Setzen Sie zuerst einen anderen Standort als Hauptstandort.');
         } else {
             $branchName = $sql->getValue('branch_name');
             $deleteSql = rex_sql::factory();
@@ -93,7 +93,7 @@ if ($lbAction === 'create_branch') {
                 : [$branchId, $activeClangId];
             
             $deleteSql->setQuery('DELETE FROM ' . rex::getTable('jsonld_localbusiness_branches') . ' ' . $whereClause, $params);
-            $message .= rex_view::success('Filiale "' . htmlspecialchars($branchName) . '" wurde gelöscht.');
+            $message .= rex_view::success('Standort "' . htmlspecialchars($branchName) . '" wurde gelöscht.');
             $branchId = 0;
         }
     }
@@ -103,25 +103,25 @@ if ($lbAction === 'create_branch') {
         $message .= rex_view::error('Sicherheitsprüfung fehlgeschlagen (CSRF). Bitte Seite neu laden.');
     } else {
     $sql = rex_sql::factory();
-    // Alle als Nicht-Hauptfiliale setzen
+    // Alle als Nicht-Hauptstandort setzen
     $sql->setQuery('UPDATE ' . rex::getTable('jsonld_localbusiness_branches') . ' SET is_main_branch = 0 WHERE clang_id = ?', [$activeClangId]);
-    // Gewählte als Hauptfiliale setzen
+    // Gewählte als Hauptstandort setzen
     $sql->setQuery('UPDATE ' . rex::getTable('jsonld_localbusiness_branches') . ' SET is_main_branch = 1 WHERE id = ? AND clang_id = ?', [$branchId, $activeClangId]);
-    $message .= rex_view::success('Hauptfiliale wurde aktualisiert.');
+    $message .= rex_view::success('Hauptstandort wurde aktualisiert.');
     }
 }
 
-// Migration: Bestehende LocalBusiness Config in erste Filiale übertragen
+// Migration: Bestehende LocalBusiness Config in ersten Standort übertragen
 function migrateExistingLocalBusinessToFirstBranch($activeClangId) {
     $existingConfig = rex_config::get('jsonld_manager', 'localbusiness_schema', []);
     if (!empty($existingConfig['name'])) {
         $sql = rex_sql::factory();
         $sql->setQuery('SELECT COUNT(*) as count FROM ' . rex::getTable('jsonld_localbusiness_branches') . ' WHERE clang_id = ?', [$activeClangId]);
         if ($sql->getValue('count') == 0) {
-            // Erste Filiale mit bestehenden Daten anlegen
+            // Ersten Standort mit bestehenden Daten anlegen
             $sql->setTable(rex::getTable('jsonld_localbusiness_branches'));
             $sql->setValues([
-                'branch_name' => 'Hauptfiliale ' . ($existingConfig['streetAddress'] ?: $existingConfig['name']),
+                'branch_name' => 'Hauptstandort ' . ($existingConfig['streetAddress'] ?: $existingConfig['name']),
                 'clang_id' => $activeClangId,
                 'is_main_branch' => 1,
                 'sort_order' => 1,
@@ -474,7 +474,7 @@ if ($lbAction === 'save' && $branchId > 0) {
     $images = implode(',', array_filter(array_map('trim', explode(',', $imagesRaw))));
     $knowsLanguage = jsonld_manager_parse_list_input(rex_post('lb_knows_language', 'string', ''));
 
-    // Bestehende Konfiguration der Filiale laden
+    // Bestehende Konfiguration der Standort laden
     $branchSql = rex_sql::factory();
     $branchSql->setQuery('SELECT config FROM ' . rex::getTable('jsonld_localbusiness_branches') . ' WHERE id = ? AND clang_id = ?', [$branchId, $activeClangId]);
     $configBeforeSave = [];
@@ -569,11 +569,11 @@ if ($lbAction === 'save' && $branchId > 0) {
         $activeClangId
     ]);
     
-    $message .= rex_view::success('LocalBusiness Schema für Filiale wurde gespeichert.');
+    $message .= rex_view::success('LocalBusiness Schema für Standort wurde gespeichert.');
     }
 }
 
-// Alle Filialen laden (domain-spezifisch)
+// Alle Standorte laden (domain-spezifisch)
 $branchesQuery = rex_sql::factory();
 
 // Prüfe ob domain_id Spalte existiert
@@ -588,22 +588,22 @@ if ($hasDomainColumn && DomainConfig::isMultiDomain()) {
 }
 $branches = $branchesQuery->getArray();
 
-// Standard: Erste Filiale auswählen wenn keine spezifische ausgewählt
+// Standard: Ersten Standort auswählen wenn keine spezifische Auswahl vorliegt
 if ($branchId === 0 && !empty($branches)) {
-    // Hauptfiliale als Standard wählen
+    // Hauptstandort als Standard wählen
     foreach ($branches as $branch) {
         if ($branch['is_main_branch']) {
             $branchId = $branch['id'];
             break;
         }
     }
-    // Fallback: Erste verfügbare Filiale
+    // Fallback: Erster verfügbarer Standort
     if ($branchId === 0) {
         $branchId = $branches[0]['id'];
     }
 }
 
-// Ausgewählte Filiale laden
+// Ausgewählten Standort laden
 $localBusinessConfig = [];
 if ($branchId > 0) {
     foreach ($branches as $branch) {
@@ -1144,7 +1144,7 @@ echo '          <div class="form-group">
         
         <div class="panel panel-primary" style="margin-bottom: 20px;">
             <header class="panel-heading">
-                <h1 class="panel-title">Filialen verwalten</h1>
+                <h1 class="panel-title">Standorte verwalten</h1>
             </header>
             <div class="panel-body">
                 
@@ -1153,13 +1153,13 @@ echo '          <div class="form-group">
                         <form method="post" style="display: flex; gap: 10px; align-items: center;">
                             ' . $csrfTokenField . '
                             <input type="hidden" name="lb_action" value="create_branch">
-                            <input type="text" name="branch_name" class="form-control" placeholder="Filialname (z.B. Filiale Musterstraße 15)" style="flex: 1;" required>
-                            <button type="submit" class="btn btn-success">Neue Filiale anlegen</button>
+                            <input type="text" name="branch_name" class="form-control" placeholder="Standortname (z.B. Standort Musterstraße 15)" style="flex: 1;" required>
+                            <button type="submit" class="btn btn-success">Neuen Standort anlegen</button>
                         </form>
                     </div>
                 </div>';
 
-// Liste aller Filialen
+// Liste aller Standorte
 if (!empty($branches)) {
     echo '<table class="table table-striped">';
     echo '<thead><tr><th style="font-size: 12px; font-weight: normal;">Name</th><th style="width: 150px; text-align: right; font-size: 12px; font-weight: normal;">Aktionen</th></tr></thead>';
@@ -1177,27 +1177,27 @@ if (!empty($branches)) {
         }
         echo '<td style="text-align: right;">';
         
-        // Hauptfiliale-Icon
+        // Hauptstandort-Icon
         if ($branch['is_main_branch']) {
-            // Aktives Hauptfiliale-Icon (gold/warning)
-            echo '<button type="button" class="btn btn-warning" disabled title="Ist Hauptfiliale"><i class="fa fa-star"></i></button> ';
+            // Aktives Hauptstandort-Icon (gold/warning)
+            echo '<button type="button" class="btn btn-warning" disabled title="Ist Hauptstandort"><i class="fa fa-star"></i></button> ';
         } else {
-            // Inaktives Icon - Button zum Setzen als Hauptfiliale
+            // Inaktives Icon - Button zum Setzen als Hauptstandort
             echo '<form method="post" style="display: inline;">';
             echo $csrfTokenField;
             echo '<input type="hidden" name="lb_action" value="set_main_branch">';
             echo '<input type="hidden" name="branch_id" value="' . $branch['id'] . '">';
-            echo '<button type="submit" class="btn btn-default" title="Als Hauptfiliale setzen"><i class="fa fa-star-o"></i></button>';
+            echo '<button type="submit" class="btn btn-default" title="Als Hauptstandort setzen"><i class="fa fa-star-o"></i></button>';
             echo '</form> ';
         }
         
         // Löschen-Button
         if ($branch['is_main_branch']) {
-            // Deaktivierter Löschen-Button für Hauptfiliale
-            echo '<button type="button" class="btn btn-default" disabled title="Hauptfiliale kann nicht gelöscht werden"><i class="fa fa-trash"></i></button> ';
+            // Deaktivierter Löschen-Button für Hauptstandort
+            echo '<button type="button" class="btn btn-default" disabled title="Hauptstandort kann nicht gelöscht werden"><i class="fa fa-trash"></i></button> ';
         } else {
-            // Aktiver Löschen-Button für normale Filialen
-            echo '<form method="post" style="display: inline;" onsubmit="return confirm(\'Filiale wirklich löschen?\')">';
+            // Aktiver Löschen-Button für normale Standorte
+            echo '<form method="post" style="display: inline;" onsubmit="return confirm(\'Standort wirklich löschen?\')">';
             echo $csrfTokenField;
             echo '<input type="hidden" name="lb_action" value="delete_branch">';
             echo '<input type="hidden" name="branch_id" value="' . $branch['id'] . '">';
@@ -1213,7 +1213,7 @@ if (!empty($branches)) {
     
     echo '</tbody></table>';
 } else {
-    echo '<div class="alert alert-info">Noch keine Filialen angelegt. Erstellen Sie die erste Filiale oben.</div>';
+    echo '<div class="alert alert-info">Noch keine Standorte angelegt. Erstellen Sie den ersten Standort oben.</div>';
 }
 
 

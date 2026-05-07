@@ -21,6 +21,30 @@ function jsonld_manager_article_branch_key(int $articleId, int $clangId): string
     return 'article_branch_' . $articleId . '_clang_' . $clangId;
 }
 
+function jsonld_manager_normalize_branch_ids($value): array {
+    if (is_array($value)) {
+        $branchIds = $value;
+    } elseif (is_string($value) && $value !== '') {
+        $decoded = json_decode($value, true);
+        if (is_array($decoded)) {
+            $branchIds = $decoded;
+        } else {
+            $branchIds = explode(',', $value);
+        }
+    } elseif ($value) {
+        $branchIds = [$value];
+    } else {
+        $branchIds = [];
+    }
+
+    $branchIds = array_map('intval', $branchIds);
+    $branchIds = array_values(array_unique(array_filter($branchIds, static function ($id) {
+        return $id > 0;
+    })));
+
+    return $branchIds;
+}
+
 function jsonld_manager_custom_json_key(int $articleId, int $clangId): string {
     if (DomainConfig::isMultiDomain()) {
         $domainId = DomainConfig::getActiveDomainId();
@@ -38,12 +62,17 @@ function jsonld_manager_disable_json_key(int $articleId, int $clangId): string {
 }
 
 function jsonld_manager_get_article_branch_id(int $articleId, ?int $clangId = null): int {
-    $clangId = $clangId ?? \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId();
-    $localizedKey = jsonld_manager_article_branch_key($articleId, $clangId);
-    return (int) rex_config::get('jsonld_manager', $localizedKey, 0);
+    $branchIds = jsonld_manager_get_article_branch_ids($articleId, $clangId);
+    return $branchIds[0] ?? 0;
 }
 
-// Funktion zum Laden der verfügbaren LocalBusiness-Filialen
+function jsonld_manager_get_article_branch_ids(int $articleId, ?int $clangId = null): array {
+    $clangId = $clangId ?? \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId();
+    $localizedKey = jsonld_manager_article_branch_key($articleId, $clangId);
+    return jsonld_manager_normalize_branch_ids(rex_config::get('jsonld_manager', $localizedKey, []));
+}
+
+// Funktion zum Laden der verfügbaren LocalBusiness-Standorte
 function getLocalBusinessBranches() {
     $activeClangId = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId();
     $activeDomainId = DomainConfig::getActiveDomainId();
@@ -96,20 +125,20 @@ if (rex_request('ajax', 'string') === 'update_branch_json') {
         exit;
     }
     $articleId = rex_request('article_id', 'int', 0);
-    $branchIdAjax = rex_request('branch_id', 'int', 0);
+    $branchIdsAjax = jsonld_manager_normalize_branch_ids(rex_post('branch_ids', 'array', []));
     
     if ($articleId > 0) {
         // Branch-Auswahl für diesen Artikel speichern
-        rex_config::set('jsonld_manager', jsonld_manager_article_branch_key($articleId, \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId()), $branchIdAjax);
+        rex_config::set('jsonld_manager', jsonld_manager_article_branch_key($articleId, \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId()), $branchIdsAjax);
         
-        // JSON-LD mit gewählter Filiale generieren (ohne leere Werte)
-        $jsonld = generateArticleJsonLd($articleId, $addon, $branchIdAjax);
+        // JSON-LD mit gewählter Standort generieren (ohne leere Werte)
+        $jsonld = generateArticleJsonLd($articleId, $branchIdsAjax);
         $jsonld = jsonld_manager_build_payload($jsonld);
         
         rex_response::sendJson([
             'success' => true,
             'jsonld' => $jsonld,
-            'branch_id' => $branchIdAjax
+            'branch_ids' => $branchIdsAjax
         ]);
         exit;
     }
@@ -127,8 +156,8 @@ if ($selectedArticleId === 0) {
 
 // Branch-Zuordnung bei Page-Reload speichern (wenn URL-Parameter vorhanden)
 if ($branchId > 0 && $selectedArticleId > 0) {
-    // Speichere die Branch-Zuordnung permanent
-    rex_config::set('jsonld_manager', jsonld_manager_article_branch_key($selectedArticleId, $activeClangId), $branchId);
+    // Legacy-Kompatibilität für ältere branch_id-Reloads
+    rex_config::set('jsonld_manager', jsonld_manager_article_branch_key($selectedArticleId, $activeClangId), [$branchId]);
 }
 
 // Funktion für hierarchische Struktur-Verarbeitung (mit Ebenen)
@@ -393,8 +422,8 @@ foreach ($articles as $article) {
 }
 
 // JSON-LD für ausgewählten Artikel generieren (nutzt zentrale Klasse)
-function generateArticleJsonLd($articleId, $addon, $branchId = null) {
-    return \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::generateForArticle($articleId, $branchId, true, \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId());
+function generateArticleJsonLd($articleId, $branchIds = null) {
+    return \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::generateForArticle($articleId, $branchIds, true, \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId());
 }
 
 function jsonld_manager_build_payload(array $jsonLdItems)
@@ -441,19 +470,22 @@ foreach ($articles as $article) {
     $hasCustomJson = !empty(trim(rex_config::get('jsonld_manager', jsonld_manager_custom_json_key((int) $article['id'], $activeClangId), '')));
     $isJsonDisabled = rex_config::get('jsonld_manager', jsonld_manager_disable_json_key((int) $article['id'], $activeClangId), false);
     
-    // Prüfen ob Non-Hauptfiliale zugeordnet ist
-    $assignedBranchId = jsonld_manager_get_article_branch_id((int) $article['id'], $activeClangId);
-    $hasNonMainBranch = false;
-    if ($assignedBranchId > 0) {
-        // Prüfen ob die zugeordnete Filiale NICHT die Hauptfiliale ist
+    // Anzahl zusätzlicher Nicht-Hauptstandortn ermitteln
+    $assignedBranchIds = jsonld_manager_get_article_branch_ids((int) $article['id'], $activeClangId);
+    $nonMainBranchCount = 0;
+    if (!empty($assignedBranchIds)) {
+        // Prüfen wie viele zugeordnete Standorte keine Hauptstandort sind
         try {
             $branchSql = rex_sql::factory();
             $branchSql->setQuery(
-                'SELECT is_main_branch FROM ' . rex::getTable('jsonld_localbusiness_branches') . ' WHERE id = ? AND clang_id = ?',
-                [$assignedBranchId, $activeClangId]
+                'SELECT is_main_branch FROM ' . rex::getTable('jsonld_localbusiness_branches') . ' WHERE id IN (' . implode(',', array_fill(0, count($assignedBranchIds), '?')) . ') AND clang_id = ?',
+                array_merge($assignedBranchIds, [$activeClangId])
             );
-            if ($branchSql->hasNext() && !$branchSql->getValue('is_main_branch')) {
-                $hasNonMainBranch = true;
+            while ($branchSql->hasNext()) {
+                if (!$branchSql->getValue('is_main_branch')) {
+                    $nonMainBranchCount++;
+                }
+                $branchSql->next();
             }
         } catch (Exception $e) {
             // Fehler ignorieren
@@ -476,9 +508,11 @@ foreach ($articles as $article) {
         $statusIndicators .= '<span class="article-status status-custom" title="Custom JSON aktiv"><i class="fa fa-sliders"></i></span>';
     }
     
-    // Icon für Non-Hauptfiliale hinzufügen
-    if ($hasNonMainBranch) {
-        $statusIndicators .= '<span class="article-status status-branch" title="Eigene Filiale zugeordnet"><i class="fa fa-map-marker"></i></span>';
+    // Icon für Non-Hauptstandort hinzufügen
+    if ($nonMainBranchCount > 0) {
+        for ($i = 0; $i < $nonMainBranchCount; $i++) {
+            $statusIndicators .= '<span class="article-status status-branch" title="Zusätzliche Standort zugeordnet"><i class="fa fa-map-marker"></i></span>';
+        }
     }
     
     $articleListRows .= '<tr class="article-row' . ($isActive ? ' active' : '') . $levelClass . '" onclick="window.location.href=\'?page=jsonld_manager/article&clang=' . (int) $activeClangId . '&article_id=' . $article['id'] . '\'">
@@ -518,7 +552,7 @@ if ($selectedArticle) {
             $jsonLdOutput = $customJsonRaw;
             $isCustomJson = true;
         } else {
-            // Automatisch generiertes JSON verwenden - mit Hauptfiliale falls vorhanden
+            // Automatisch generiertes JSON verwenden - mit Hauptstandort falls vorhanden
             $mainBranchId = null;
             $branches = getLocalBusinessBranches();
             foreach ($branches as $branch) {
@@ -529,21 +563,22 @@ if ($selectedArticle) {
             }
             
             // Gespeicherte Branch-Auswahl für diesen Artikel prüfen
-            $selectedBranchId = jsonld_manager_get_article_branch_id((int) $selectedArticleId, $activeClangId);
+            $selectedBranchIds = jsonld_manager_get_article_branch_ids((int) $selectedArticleId, $activeClangId);
+            $selectedBranchId = $selectedBranchIds[0] ?? 0;
             
-            // Priorität: URL-Parameter > gespeicherte Config > Hauptfiliale
+            // Priorität: URL-Parameter > gespeicherte Config > Hauptstandort
             if ($branchId > 0) {
                 // URL-Parameter hat höchste Priorität (Live-Vorschau)
-                $useBranchId = $branchId;
+                $useBranchId = [$branchId];
             } elseif ($selectedBranchId > 0) {
                 // Gespeicherte Config als Fallback
-                $useBranchId = $selectedBranchId;
+                $useBranchId = $selectedBranchIds;
             } else {
-                // Hauptfiliale als Standard
-                $useBranchId = $mainBranchId;
+                // Hauptstandort als Standard
+                $useBranchId = $mainBranchId ? [$mainBranchId] : [];
             }
             
-            $jsonLdItems = generateArticleJsonLd($selectedArticleId, $addon, $useBranchId);
+            $jsonLdItems = generateArticleJsonLd($selectedArticleId, $useBranchId);
             $jsonLdOutput = json_encode(jsonld_manager_build_payload($jsonLdItems), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             $isCustomJson = false;
         }
@@ -630,44 +665,36 @@ $content = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::renderClangTabs($activ
                     </div>
                     
                     <!-- LocalBusiness Select darunter, auch rechtsbündig -->
-                    ' . (function() use ($selectedArticle, $addon, $branchId, $activeClangId) {
+                    ' . (function() use ($selectedArticle, $selectedArticleId, $branchId, $activeClangId, $mainBranchId) {
                         $branches = getLocalBusinessBranches();
                         if (!empty($branches) && count($branches) > 1) {
-                            // Gespeicherte Branch-Auswahl für diesen Artikel laden
-                            $savedBranchId = 0;
+                            // Gespeicherte Branch-Auswahl für diesen Artikel laden (jetzt als Array)
+                            $savedBranchIds = [];
                             if ($selectedArticle) {
-                                $savedBranchId = jsonld_manager_get_article_branch_id((int) $selectedArticleId, $activeClangId);
+                                $savedBranchIds = jsonld_manager_get_article_branch_ids((int) $selectedArticleId, $activeClangId);
                             }
-                            
-                            // Priorität: URL-Parameter > gespeicherte Config > Hauptfiliale
-                            $effectiveBranchId = 0;
-                            if ($branchId > 0) {
-                                // URL-Parameter hat höchste Priorität (Live-Vorschau)
-                                $effectiveBranchId = $branchId;
-                            } elseif ($savedBranchId > 0) {
-                                // Gespeicherte Config als Fallback
-                                $effectiveBranchId = $savedBranchId;
+                            // URL-Parameter als Auswahl ergänzen
+                            $effectiveBranchIds = $savedBranchIds;
+                            if (empty($effectiveBranchIds) && $mainBranchId > 0) {
+                                $effectiveBranchIds[] = $mainBranchId;
                             }
-                            
+                            if ($branchId > 0 && !in_array($branchId, $effectiveBranchIds)) {
+                                $effectiveBranchIds[] = $branchId;
+                            }
                             $branchOptions = '';
                             foreach ($branches as $branch) {
-                                $isMain = $branch['is_main'] ? ' (Hauptfiliale)' : '';
-                                
-                                // Auswahl-Logik basierend auf effectiveBranchId
-                                $selected = '';
-                                if ($effectiveBranchId > 0 && $branch['id'] == $effectiveBranchId) {
-                                    $selected = ' selected';
-                                } elseif ($effectiveBranchId == 0 && $branch['is_main']) {
-                                    $selected = ' selected';
-                                }
-                                
-                                $branchOptions .= '<option value="' . $branch['id'] . '"' . $selected . '>' . htmlspecialchars($branch['name']) . $isMain . '</option>';
+                                $isMain = $branch['is_main'] ? ' (Hauptstandort)' : '';
+                                $selected = in_array($branch['id'], $effectiveBranchIds) ? ' selected' : '';
+                                $branchOptions .= '<option value="' . $branch['id'] . '" data-is-main="' . ($branch['is_main'] ? '1' : '0') . '"' . $selected . '>' . htmlspecialchars($branch['name']) . $isMain . '</option>';
                             }
                             return '<div style="display: flex; align-items: center; gap: 8px;">
-                                        <label for="branch-selector" style="margin: 0; font-weight: bold; font-size: 12px; white-space: nowrap;">LocalBusiness Filiale:</label>
-                                        <select id="branch-selector" class="form-control selectpicker" data-live-search="true" data-size="10" style="width: auto; min-width: 200px;" onchange="updateJsonWithBranch()">
+                                        <label for="branch-selector" style="margin: 0; font-weight: bold; font-size: 12px; white-space: nowrap;">LocalBusiness Standorte:</label>
+                                        <select id="branch-selector" class="form-control selectpicker" data-live-search="true" data-size="10" style="width: auto; min-width: 200px;" multiple>
                                             ' . $branchOptions . '
                                         </select>
+                                        <button type="button" class="btn btn-success btn-sm" id="branch-save-button" onclick="saveBranchSelection()">
+                                            Speichern
+                                        </button>
                                     </div>';
                         }
                         return '';
@@ -744,23 +771,100 @@ function deleteCustomJson() {
     }
 }
 
-function updateJsonWithBranch() {
+function saveBranchSelection() {
     const branchSelect = document.getElementById("branch-selector");
-    const selectedBranchId = branchSelect ? branchSelect.value : 0;
+    const saveButton = document.getElementById("branch-save-button");
+    const selectedBranchIds = branchSelect ? Array.from(branchSelect.selectedOptions).map(option => option.value) : [];
     const articleId = ' . ($selectedArticleId ?: 0) . ';
-    const activeClangId = ' . (int) $activeClangId . ';
     
     if (articleId > 0) {
-        // Seite neu laden mit branch_id Parameter für sofortige Icon-Aktualisierung
-        const url = new URL(window.location);
-        if (selectedBranchId && selectedBranchId != 0) {
-            url.searchParams.set("branch_id", selectedBranchId);
-        } else {
-            url.searchParams.delete("branch_id");
+        const formData = new FormData();
+        const csrfField = document.querySelector("input[name=\"' . rex_csrf_token::PARAM . '\"]");
+
+        if (csrfField) {
+            formData.append(csrfField.name, csrfField.value);
         }
-        url.searchParams.set("clang", activeClangId);
-        url.searchParams.set("article_id", articleId);
-        window.location.href = url.toString();
+
+        formData.append("ajax", "update_branch_json");
+        formData.append("article_id", articleId);
+        selectedBranchIds.forEach(branchId => {
+            formData.append("branch_ids[]", branchId);
+        });
+
+        if (saveButton) {
+            saveButton.disabled = true;
+            saveButton.textContent = "Speichert...";
+        }
+
+        fetch(window.location.href, {
+            method: "POST",
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || "save_failed");
+            }
+
+            const preview = document.getElementById("json-preview");
+            if (preview && data.jsonld) {
+                preview.textContent = JSON.stringify(data.jsonld, null, 2);
+            }
+
+            updateArticleBranchIcon(selectedBranchIds);
+
+            if (typeof rex !== "undefined" && typeof rex.flashMessage === "function") {
+                rex.flashMessage("LocalBusiness-Standort wurde gespeichert.", "success");
+            }
+        })
+        .catch(() => {
+            alert("Fehler beim Speichern der LocalBusiness-Standort.");
+        })
+        .finally(() => {
+            if (saveButton) {
+                saveButton.disabled = false;
+                saveButton.textContent = "Speichern";
+            }
+        });
+    }
+}
+
+function updateArticleBranchIcon(selectedBranchIds) {
+    const activeRow = document.querySelector(".article-row.active");
+    const branchSelect = document.getElementById("branch-selector");
+    if (!activeRow || !branchSelect) {
+        return;
+    }
+
+    const selectedOptions = Array.from(branchSelect.selectedOptions);
+    const nonMainBranchCount = selectedOptions.filter(option => option.dataset.isMain !== "1").length;
+    let iconsContainer = activeRow.querySelector(".article-icons");
+    const existingBranchIcons = activeRow.querySelectorAll(".status-branch");
+
+    existingBranchIcons.forEach(icon => icon.remove());
+
+    if (nonMainBranchCount > 0) {
+        if (!iconsContainer) {
+            const statusCell = activeRow.querySelector("td.text-right");
+            if (!statusCell) {
+                return;
+            }
+            iconsContainer = document.createElement("span");
+            iconsContainer.className = "article-icons";
+            statusCell.appendChild(iconsContainer);
+        }
+
+        for (let i = 0; i < nonMainBranchCount; i++) {
+            const branchIcon = document.createElement("span");
+            branchIcon.className = "article-status status-branch";
+            branchIcon.title = "Zusätzliche Standort zugeordnet";
+            branchIcon.innerHTML = "<i class=\"fa fa-map-marker\"></i>";
+            iconsContainer.appendChild(branchIcon);
+        }
+    }
+
+    if (iconsContainer && !iconsContainer.children.length) {
+        iconsContainer.remove();
     }
 }
 

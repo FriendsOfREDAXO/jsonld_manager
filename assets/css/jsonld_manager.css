@@ -377,6 +377,23 @@
     cursor: pointer;
 }
 
+.article-table .article-row td {
+    background-color: #2a3642;
+    transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.article-table .article-row td:first-child {
+    border-radius: 3px 0 0 3px;
+}
+
+.article-table .article-row td:last-child {
+    border-radius: 0 3px 3px 0;
+}
+
+.article-table .article-row:hover td {
+    background-color: #324150;
+}
+
 .article-table .article-row.active,
 .article-table .article-row.active:hover {
     background-color: #256ea8;
@@ -391,6 +408,11 @@
 .article-table .article-row.active .article-path,
 .article-table .article-row.active:hover .article-name,
 .article-table .article-row.active:hover .article-path {
+    background: transparent !important;
+}
+
+.article-table .article-row:hover .article-name,
+.article-table .article-row:hover .article-path {
     background: transparent !important;
 }
 
@@ -450,8 +472,8 @@
 
 .article-table .article-row[class*="article-level-"] .article-name,
 .article-table .article-row[class*="article-level-"] .article-path {
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 2px;
+    background: transparent;
+    border-radius: 0;
 }
 
 .article-table .article-row.article-level-1 .article-name,

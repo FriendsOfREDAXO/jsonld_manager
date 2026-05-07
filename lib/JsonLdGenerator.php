@@ -19,7 +19,7 @@ class JsonLdGenerator
      * JSON-LD für Artikel generieren (zentrale Funktion für Backend + Frontend)
      * 
      * @param int $articleId
-     * @param int|null $branchId LocalBusiness Branch-ID (optional)
+     * @param int|array|null $branchId LocalBusiness Branch-ID(s) (optional)
      * @param bool $isDebugMode Debug-Ausgabe aktiviert
      * @return array JSON-LD Array nach Schema.org Best Practice Reihenfolge
      */
@@ -39,33 +39,9 @@ class JsonLdGenerator
         $organizationConfig = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getLocalizedConfig($addon, 'organization_schema', $effectiveClangId, []);
         $localBusinessConfig = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getLocalizedConfig($addon, 'localbusiness_schema', $effectiveClangId, []);
         
-        // Spezifische Filial-Daten laden, falls branchId angegeben
-        if ($branchId && $branchId > 0) {
-            try {
-                $sql = \rex_sql::factory();
-                $sql->setQuery('SELECT branch_name, config FROM ' . \rex::getTable('jsonld_localbusiness_branches') . ' WHERE id = ? AND clang_id = ?', [(int) $branchId, $effectiveClangId]);
-                if ($sql->hasNext()) {
-                    $branchConfig = json_decode($sql->getValue('config'), true) ?: [];
-                    if (!empty($branchConfig)) {
-                        $localBusinessConfig = array_merge($localBusinessConfig, $branchConfig);
-                        if (empty($localBusinessConfig['name'])) {
-                            $localBusinessConfig['name'] = $sql->getValue('branch_name');
-                        }
-                        if ($isDebugMode) {
-                            self::debugLog('Branch-Config geladen', [
-                                'branch_id' => $branchId,
-                                'branch_name' => $sql->getValue('branch_name'),
-                                'merged_keys' => array_keys($localBusinessConfig)
-                            ]);
-                        }
-                    }
-                }
-            } catch (\Exception $e) {
-                if ($isDebugMode) {
-                    self::debugLog('Branch-Config Fehler', ['error' => $e->getMessage()]);
-                }
-            }
-        }
+        $branchIds = self::normalizeBranchIds($branchId);
+        $branchConfigs = self::loadBranchConfigs($branchIds, $effectiveClangId, $localBusinessConfig, $isDebugMode);
+        $primaryBranchId = $branchIds[0] ?? null;
         
         // Debug: LocalBusiness-Config Status
         if ($isDebugMode) {
@@ -73,7 +49,8 @@ class JsonLdGenerator
                 'config_keys' => array_keys($localBusinessConfig),
                 'name_value' => $localBusinessConfig['name'] ?? 'EMPTY',
                 'is_empty' => empty($localBusinessConfig['name']),
-                'branch_id_used' => $branchId
+                'branch_id_used' => $primaryBranchId,
+                'branch_ids_used' => $branchIds
             ]);
         }
         
@@ -166,96 +143,34 @@ class JsonLdGenerator
             }
         }
         
-        // 3. LocalBusiness Schema (falls konfiguriert)
-        if (!empty($localBusinessConfig['name'])) {
-            $localBusinessSchema = [
-                '@context' => 'https://schema.org',
-                '@type' => $localBusinessConfig['business_type'] ?? 'LocalBusiness',
-                '@id' => rtrim(\rex::getServer(), '/') . '/#localbusiness' . ($branchId ? '_' . $branchId : ''),
-                'name' => $localBusinessConfig['name']
-            ];
-            
-            // Basis-Properties
-            if (!empty($localBusinessConfig['url'])) {
-                $localBusinessSchema['url'] = $localBusinessConfig['url'];
-            }
-            if (!empty($localBusinessConfig['description'])) {
-                $localBusinessSchema['description'] = $localBusinessConfig['description'];
-            }
-            if (!empty($localBusinessConfig['telephone']) && trim($localBusinessConfig['telephone']) !== '') {
-                $localBusinessSchema['telephone'] = $localBusinessConfig['telephone'];
-            }
-            
-            // Extended Properties
-            if (!empty($localBusinessConfig['paymentAccepted'])) {
-                $localBusinessSchema['paymentAccepted'] = $localBusinessConfig['paymentAccepted'];
-            }
-            if (!empty($localBusinessConfig['currenciesAccepted'])) {
-                $localBusinessSchema['currenciesAccepted'] = $localBusinessConfig['currenciesAccepted'];
-            }
-            if (!empty($localBusinessConfig['slogan'])) {
-                $localBusinessSchema['slogan'] = $localBusinessConfig['slogan'];
-            }
-            if (!empty($localBusinessConfig['knowsLanguage'])) {
-                $localBusinessSchema['knowsLanguage'] = $localBusinessConfig['knowsLanguage'];
-            }
-            
-            // Geo Coordinates
-            if (!empty($localBusinessConfig['geo'])) {
-                $geo = $localBusinessConfig['geo'];
-                if (is_array($geo)) {
-                    $latitude = trim($geo['latitude'] ?? '');
-                    $longitude = trim($geo['longitude'] ?? '');
-                    
-                    if ($latitude !== '' && $longitude !== '' && $latitude !== '0' && $longitude !== '0') {
-                        $localBusinessSchema['geo'] = $geo;
-                    }
+        // 3. LocalBusiness Schema(s) (falls konfiguriert)
+        if (!empty($branchConfigs)) {
+            foreach ($branchConfigs as $branchConfigEntry) {
+                $localBusinessSchema = self::buildLocalBusinessSchema($branchConfigEntry['config'], $branchConfigEntry['branch_id']);
+                if (!$localBusinessSchema) {
+                    continue;
+                }
+                $jsonLdItems[] = $localBusinessSchema;
+
+                if ($isDebugMode) {
+                    self::debugLog('LocalBusiness Schema hinzugefügt', [
+                        'name' => $branchConfigEntry['config']['name'] ?? '',
+                        'branch_id' => $branchConfigEntry['branch_id'],
+                        'has_address' => !empty($localBusinessSchema['address']),
+                        'has_geo' => !empty($localBusinessSchema['geo'])
+                    ]);
                 }
             }
-            
-            // Opening Hours
-            if (!empty($localBusinessConfig['openingHoursSpecification'])) {
-                $openingHours = $localBusinessConfig['openingHoursSpecification'];
-                if (is_array($openingHours) && count($openingHours) > 0) {
-                    $hasValidHours = false;
-                    foreach ($openingHours as $hours) {
-                        if (is_array($hours) && 
-                            !empty($hours['dayOfWeek']) && 
-                            (!empty($hours['opens']) || !empty($hours['closes']))) {
-                            $hasValidHours = true;
-                            break;
-                        }
-                    }
-                    
-                    if ($hasValidHours) {
-                        $localBusinessSchema['openingHoursSpecification'] = $openingHours;
-                    }
-                }
+        } elseif (!empty($localBusinessConfig['name'])) {
+            $localBusinessSchema = self::buildLocalBusinessSchema($localBusinessConfig, $primaryBranchId);
+            if ($localBusinessSchema) {
+                $jsonLdItems[] = $localBusinessSchema;
             }
-            
-            // Adresse (Legacy-Support)
-            $address = [];
-            if (!empty($localBusinessConfig['streetAddress'])) $address['streetAddress'] = $localBusinessConfig['streetAddress'];
-            if (!empty($localBusinessConfig['street'])) $address['streetAddress'] = $localBusinessConfig['street'];
-            if (!empty($localBusinessConfig['addressLocality'])) $address['addressLocality'] = $localBusinessConfig['addressLocality'];
-            if (!empty($localBusinessConfig['city'])) $address['addressLocality'] = $localBusinessConfig['city'];
-            if (!empty($localBusinessConfig['postalCode'])) $address['postalCode'] = $localBusinessConfig['postalCode'];
-            if (!empty($localBusinessConfig['postal_code'])) $address['postalCode'] = $localBusinessConfig['postal_code'];
-            if (!empty($localBusinessConfig['addressCountry'])) $address['addressCountry'] = $localBusinessConfig['addressCountry'];
-            if (!empty($localBusinessConfig['country'])) $address['addressCountry'] = $localBusinessConfig['country'];
-            
-            if (!empty($localBusinessConfig['address']) && is_array($localBusinessConfig['address'])) {
-                $localBusinessSchema['address'] = $localBusinessConfig['address'];
-            } elseif (!empty($address)) {
-                $localBusinessSchema['address'] = array_merge(['@type' => 'PostalAddress'], $address);
-            }
-            
-            $jsonLdItems[] = $localBusinessSchema;
-            
+
             if ($isDebugMode) {
                 self::debugLog('LocalBusiness Schema hinzugefügt', [
                     'name' => $localBusinessConfig['name'],
-                    'branch_id' => $branchId,
+                    'branch_id' => $primaryBranchId,
                     'has_address' => !empty($localBusinessSchema['address']),
                     'has_geo' => !empty($localBusinessSchema['geo'])
                 ]);
@@ -264,7 +179,7 @@ class JsonLdGenerator
             if ($isDebugMode) {
                 self::debugLog('LocalBusiness Schema ÜBERSPRUNGEN', [
                     'reason' => 'name empty or missing',
-                    'branch_id' => $branchId,
+                    'branch_id' => $primaryBranchId,
                     'config_keys' => $localBusinessConfig ? array_keys($localBusinessConfig) : 'config is empty'
                 ]);
             }
@@ -468,7 +383,8 @@ class JsonLdGenerator
             self::debugLog('JSON-LD Generation abgeschlossen', [
                 'total_schemas' => count($jsonLdItems),
                 'schemas' => array_map(function($item) { return $item['@type']; }, $jsonLdItems),
-                'branch_id_used' => $branchId
+                'branch_id_used' => $primaryBranchId,
+                'branch_ids_used' => $branchIds
             ]);
         }
         
@@ -484,6 +400,141 @@ class JsonLdGenerator
     private static function debugLog($message, $data = [])
     {
         return;
+    }
+
+    private static function normalizeBranchIds($branchId): array
+    {
+        if (is_array($branchId)) {
+            $branchIds = $branchId;
+        } elseif ($branchId) {
+            $branchIds = [$branchId];
+        } else {
+            $branchIds = [];
+        }
+
+        $branchIds = array_map('intval', $branchIds);
+        return array_values(array_unique(array_filter($branchIds, static function ($id) {
+            return $id > 0;
+        })));
+    }
+
+    private static function loadBranchConfigs(array $branchIds, int $clangId, array $baseConfig, bool $isDebugMode): array
+    {
+        $branchConfigs = [];
+
+        foreach ($branchIds as $singleBranchId) {
+            try {
+                $sql = \rex_sql::factory();
+                $sql->setQuery('SELECT branch_name, config FROM ' . \rex::getTable('jsonld_localbusiness_branches') . ' WHERE id = ? AND clang_id = ?', [$singleBranchId, $clangId]);
+                if ($sql->hasNext()) {
+                    $branchConfig = json_decode($sql->getValue('config'), true) ?: [];
+                    $mergedConfig = array_merge($baseConfig, $branchConfig);
+                    if (empty($mergedConfig['name'])) {
+                        $mergedConfig['name'] = $sql->getValue('branch_name');
+                    }
+                    $branchConfigs[] = [
+                        'branch_id' => $singleBranchId,
+                        'config' => $mergedConfig,
+                    ];
+
+                    if ($isDebugMode) {
+                        self::debugLog('Branch-Config geladen', [
+                            'branch_id' => $singleBranchId,
+                            'branch_name' => $sql->getValue('branch_name'),
+                            'merged_keys' => array_keys($mergedConfig)
+                        ]);
+                    }
+                }
+            } catch (\Exception $e) {
+                if ($isDebugMode) {
+                    self::debugLog('Branch-Config Fehler', [
+                        'branch_id' => $singleBranchId,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+        }
+
+        return $branchConfigs;
+    }
+
+    private static function buildLocalBusinessSchema(array $localBusinessConfig, $branchId = null): ?array
+    {
+        if (empty($localBusinessConfig['name'])) {
+            return null;
+        }
+
+        $localBusinessSchema = [
+            '@context' => 'https://schema.org',
+            '@type' => $localBusinessConfig['business_type'] ?? 'LocalBusiness',
+            '@id' => rtrim(\rex::getServer(), '/') . '/#localbusiness' . ($branchId ? '_' . $branchId : ''),
+            'name' => $localBusinessConfig['name']
+        ];
+
+        if (!empty($localBusinessConfig['url'])) {
+            $localBusinessSchema['url'] = $localBusinessConfig['url'];
+        }
+        if (!empty($localBusinessConfig['description'])) {
+            $localBusinessSchema['description'] = $localBusinessConfig['description'];
+        }
+        if (!empty($localBusinessConfig['telephone']) && trim($localBusinessConfig['telephone']) !== '') {
+            $localBusinessSchema['telephone'] = $localBusinessConfig['telephone'];
+        }
+        if (!empty($localBusinessConfig['paymentAccepted'])) {
+            $localBusinessSchema['paymentAccepted'] = $localBusinessConfig['paymentAccepted'];
+        }
+        if (!empty($localBusinessConfig['currenciesAccepted'])) {
+            $localBusinessSchema['currenciesAccepted'] = $localBusinessConfig['currenciesAccepted'];
+        }
+        if (!empty($localBusinessConfig['slogan'])) {
+            $localBusinessSchema['slogan'] = $localBusinessConfig['slogan'];
+        }
+        if (!empty($localBusinessConfig['knowsLanguage'])) {
+            $localBusinessSchema['knowsLanguage'] = $localBusinessConfig['knowsLanguage'];
+        }
+
+        if (!empty($localBusinessConfig['geo']) && is_array($localBusinessConfig['geo'])) {
+            $geo = $localBusinessConfig['geo'];
+            $latitude = trim($geo['latitude'] ?? '');
+            $longitude = trim($geo['longitude'] ?? '');
+            if ($latitude !== '' && $longitude !== '' && $latitude !== '0' && $longitude !== '0') {
+                $localBusinessSchema['geo'] = $geo;
+            }
+        }
+
+        if (!empty($localBusinessConfig['openingHoursSpecification'])) {
+            $openingHours = $localBusinessConfig['openingHoursSpecification'];
+            if (is_array($openingHours) && count($openingHours) > 0) {
+                $hasValidHours = false;
+                foreach ($openingHours as $hours) {
+                    if (is_array($hours) && !empty($hours['dayOfWeek']) && (!empty($hours['opens']) || !empty($hours['closes']))) {
+                        $hasValidHours = true;
+                        break;
+                    }
+                }
+                if ($hasValidHours) {
+                    $localBusinessSchema['openingHoursSpecification'] = $openingHours;
+                }
+            }
+        }
+
+        $address = [];
+        if (!empty($localBusinessConfig['streetAddress'])) $address['streetAddress'] = $localBusinessConfig['streetAddress'];
+        if (!empty($localBusinessConfig['street'])) $address['streetAddress'] = $localBusinessConfig['street'];
+        if (!empty($localBusinessConfig['addressLocality'])) $address['addressLocality'] = $localBusinessConfig['addressLocality'];
+        if (!empty($localBusinessConfig['city'])) $address['addressLocality'] = $localBusinessConfig['city'];
+        if (!empty($localBusinessConfig['postalCode'])) $address['postalCode'] = $localBusinessConfig['postalCode'];
+        if (!empty($localBusinessConfig['postal_code'])) $address['postalCode'] = $localBusinessConfig['postal_code'];
+        if (!empty($localBusinessConfig['addressCountry'])) $address['addressCountry'] = $localBusinessConfig['addressCountry'];
+        if (!empty($localBusinessConfig['country'])) $address['addressCountry'] = $localBusinessConfig['country'];
+
+        if (!empty($localBusinessConfig['address']) && is_array($localBusinessConfig['address'])) {
+            $localBusinessSchema['address'] = $localBusinessConfig['address'];
+        } elseif (!empty($address)) {
+            $localBusinessSchema['address'] = array_merge(['@type' => 'PostalAddress'], $address);
+        }
+
+        return $localBusinessSchema;
     }
     
     /**

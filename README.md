@@ -22,7 +22,7 @@ Nach der Installation solltest du zuerst unter `Allgemeine Angaben` die Basisdat
 - `WebSite Schema`
 - optional `LocalBusiness`
 
-Wenn du ein lokales Unternehmen mit realem Standort hast, ist es sinnvoll, mindestens ein `LocalBusiness` anzulegen. Wenn es mehrere Standorte gibt, können auch mehrere Filialen gepflegt werden.
+Wenn du ein lokales Unternehmen mit realem Standort hast, ist es sinnvoll, mindestens ein `LocalBusiness` anzulegen. Wenn es mehrere Standorte gibt, können auch mehrere Standorte gepflegt werden.
 
 Diese Angaben sind die Grundlage für die spätere Ausgabe auf den Artikeln.
 
@@ -33,7 +33,7 @@ Anschließend kannst du pro Artikel festlegen, wie mit JSON-LD umgegangen werden
 Dort sind vor allem diese Möglichkeiten wichtig:
 
 - Standard-Ausgabe für den Artikel verwenden
-- eine bestimmte `LocalBusiness`-Filiale zuordnen
+- einen bestimmten `LocalBusiness`-Standort zuordnen
 - eigenes Custom-JSON für einen Artikel hinterlegen
 - JSON-LD für einen Artikel bewusst deaktivieren
 
@@ -99,7 +99,7 @@ Das ist optional und nicht nötig, um die normale JSON-LD-Ausgabe für Website u
 - Sprachauswahl mit persistenter Auswahl innerhalb des AddOns
 - Custom JSON pro Artikel und Sprache
 - JSON-LD pro Artikel deaktivierbar (pro Sprache)
-- Zuordnung einer LocalBusiness-Filiale pro Artikel und Sprache
+- Zuordnung eines LocalBusiness-Standorts pro Artikel und Sprache
 - Dynamische URL-Profile mit Schema-Mapping (wenn URL-Addon aktiv ist)
 - Debug-Modus mit JSON-LD Overlay im Frontend
 
@@ -107,7 +107,7 @@ Das ist optional und nicht nötig, um die normale JSON-LD-Ausgabe für Website u
 
 - Organization Schema (sprachabhängig)
 - WebSite Schema (sprachabhängig)
-- LocalBusiness Filialverwaltung (sprachabhängig)
+- LocalBusiness Standortverwaltung (sprachabhängig)
 
 ### Frontend
 
@@ -122,7 +122,7 @@ Das AddOn ist auf Mehrsprachigkeit ausgelegt:
 
 - Sprachbezogene Konfigurationen über `LanguageConfig`
 - Artikel-Zuordnungen (Branch, Custom JSON, Disable-Flag) pro Sprache
-- LocalBusiness-Filialen pro Sprache (`clang_id`)
+- LocalBusiness-Standorte pro Sprache (`clang_id`)
 - Sprachwahl wird im AddOn gespeichert und beim Seitenwechsel beibehalten
 
 ## Multi-Domain-Support
@@ -150,7 +150,7 @@ Das AddOn unterstützt vollständig YRewrite Multi-Domain-Installationen:
 ### Strikte Domain-Trennung
 - **Keine automatische Migration** zwischen Domains
 - **Separate Datenbankeinträge** für jede Domain
-- **Manuelle Zuordnung**: LocalBusiness-Filialen können manuell zugeordnet werden
+- **Manuelle Zuordnung**: LocalBusiness-Standorte können manuell zugeordnet werden
 - **Eigenständige Konfiguration**: Jede Domain startet mit leeren Einstellungen
 
 ## Sicherheit

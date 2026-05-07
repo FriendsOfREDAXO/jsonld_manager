@@ -2,6 +2,23 @@
 
 Dieses Changelog wird ab Version `1.0.0` neu geführt.
 
+## 1.0.0-beta.13 (07. Mai 2026)
+
+**Artikel / LocalBusiness:**
+- Multi-Select für LocalBusiness-Standorte in `article_jsonld` wiederhergestellt und AJAX-Speicherung über separaten Speichern-Button ergänzt
+- Gespeicherte Standort-Auswahl wird nach Reload korrekt wieder im Select vorausgewählt
+- Hauptstandort wird als effektiver Fallback im Select ebenfalls vorausgewählt, wenn keine eigene Auswahl gespeichert ist
+- JSON-LD Vorschau und Frontend-Ausgabe erzeugen jetzt für alle gewählten Standorte eigene `LocalBusiness`-Einträge
+- Statusliste zeigt pro zusätzlichem Nicht-Hauptstandort einen eigenen Place-Marker (`1-x`)
+
+**Bereinigung:**
+- Unbenutzten Parameter in `generateArticleJsonLd()` entfernt
+- Standort-Auswahl-Handling für Einzelwert- und Array-Speicherung vereinheitlicht
+
+**UI / Artikelübersicht:**
+- Zeilenhintergrund in der Artikelübersicht über die volle Breite bis hinter die Status-Marker vereinheitlicht
+- Hover-Zustand für Artikelzeilen ergänzt, damit inaktive Zeilen klarer erfassbar sind
+
 ## 1.0.0-beta.12 (07. Mai 2026)
 
 **Bugfixes & Wartung:**

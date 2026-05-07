@@ -36,12 +36,16 @@ if (rex_request('ajax', 'string') === 'get_article_data') {
 // AJAX: Website Schema Configuration speichern
 if (rex_post('action') === 'save_website_config' && rex_post('article_id', 'int') && $csrfToken->isValid()) {
     $articleId = rex_post('article_id', 'int');
+    $localbusiness_branch_ids = rex_post('localbusiness_branch_ids', 'array', []);
+    if (!is_array($localbusiness_branch_ids)) {
+        $localbusiness_branch_ids = $localbusiness_branch_ids ? [$localbusiness_branch_ids] : [];
+    }
     $config = [
         'name_field' => rex_post('name_field', 'string', ''),
         'description_field' => rex_post('description_field', 'string', ''),
         'url_field' => rex_post('url_field', 'string', ''),
         'image_field' => rex_post('image_field', 'string', ''),
-        'localbusiness_branch_id' => rex_post('localbusiness_branch_id', 'int', 0),
+        'localbusiness_branch_ids' => $localbusiness_branch_ids,
         'active' => rex_post('active', 'bool', false)
     ];
     
@@ -108,15 +112,21 @@ function getWebsiteSchemaConfig($articleId) {
     if ($sql->hasNext()) {
         $config = json_decode($sql->getValue('config'), true) ?? [];
         $config['active'] = (bool) $sql->getValue('active');
+        // Kompatibilität: Einzelwert zu Array
+        if (isset($config['localbusiness_branch_id']) && !isset($config['localbusiness_branch_ids'])) {
+            $config['localbusiness_branch_ids'] = $config['localbusiness_branch_id'] ? [$config['localbusiness_branch_id']] : [];
+        }
+        if (!isset($config['localbusiness_branch_ids'])) {
+            $config['localbusiness_branch_ids'] = [];
+        }
         return $config;
     }
-    
     return [
         'name_field' => '',
         'description_field' => '',
         'url_field' => '',
         'image_field' => '',
-        'localbusiness_branch_id' => 0,
+        'localbusiness_branch_ids' => [],
         'active' => false
     ];
 }
@@ -169,7 +179,7 @@ function getAvailableMetaFields() {
 }
 
 /**
- * Verfügbare LocalBusiness Filialen abrufen
+ * Verfügbare LocalBusiness Standorte abrufen
  */
 function getAvailableLocalBusinessBranches() {
     $branches = [0 => 'Keine LocalBusiness Zuordnung (für allgemeine Seiten)'];
@@ -181,13 +191,13 @@ function getAvailableLocalBusinessBranches() {
         while ($sql->hasNext()) {
             $label = $sql->getValue('branch_name');
             if ($sql->getValue('is_main_branch')) {
-                $label .= ' (Hauptfiliale)';
+                $label .= ' (Hauptstandort)';
             }
             $branches[$sql->getValue('id')] = $label;
             $sql->next();
         }
     } catch (Exception $e) {
-        // Fallback: Keine Filialen verfügbar
+        // Fallback: Keine Standorte verfügbar
     }
     
     return $branches;
@@ -203,12 +213,15 @@ function generateWebPageJsonLd($articleId) {
     
     // Gespeicherte Konfiguration laden
     $config = getWebsiteSchemaConfig($articleId);
-    
     $jsonld = [
         "@context" => "https://schema.org",
         "@type" => "WebPage",
         "@id" => (\rex_addon::get('yrewrite')->isAvailable() ? rex_yrewrite::getFullUrlByArticleId($articleId) : rex_url::frontendController() . '?article_id=' . $articleId) . '#webpage'
     ];
+    // LocalBusiness-IDs als Array berücksichtigen
+    if (!empty($config['localbusiness_branch_ids'])) {
+        $jsonld['localBusinessBranchIds'] = $config['localbusiness_branch_ids'];
+    }
     
     // Name/Title
     if (!empty($config['name_field'])) {
@@ -290,7 +303,7 @@ while ($templateSql->hasNext()) {
 // Verfügbare Meta-Felder laden
 $availableFields = getAvailableMetaFields();
 
-// Verfügbare LocalBusiness Filialen laden  
+// Verfügbare LocalBusiness Standorte laden  
 $availableBranches = getAvailableLocalBusinessBranches();
 
 // CSS für Layout
@@ -388,12 +401,19 @@ function updateConfigPanel(article, config) {
     document.getElementById("name_field").value = config.name_field || "";
     document.getElementById("description_field").value = config.description_field || "";
     document.getElementById("image_field").value = config.image_field || "";
-    document.getElementById("localbusiness_branch_id").value = config.localbusiness_branch_id || 0;
+    // Multi-Select für Standorte
+    const lbSelect = document.getElementById("localbusiness_branch_ids");
+    if (lbSelect) {
+        Array.from(lbSelect.options).forEach(opt => {
+            opt.selected = (config.localbusiness_branch_ids || []).map(String).includes(String(opt.value));
+        });
+        if (typeof jQuery !== "undefined" && typeof jQuery.fn.selectpicker !== "undefined") {
+            jQuery(lbSelect).selectpicker("refresh");
+        }
+    }
     document.getElementById("active").checked = config.active || false;
-
-    // Selectpicker-UI nach programmatischem Setzen aktualisieren
     if (typeof jQuery !== "undefined" && typeof jQuery.fn.selectpicker !== "undefined") {
-        jQuery("#name_field, #description_field, #image_field, #localbusiness_branch_id").selectpicker("refresh");
+        jQuery("#name_field, #description_field, #image_field, #localbusiness_branch_ids").selectpicker("refresh");
     }
     
     // Verstecktes Feld für Artikel-ID
@@ -418,18 +438,32 @@ function saveWebsiteConfig() {
         return;
     }
     
-    const formData = new FormData(document.getElementById("website-config-form"));
+    const form = document.getElementById("website-config-form");
+    const formData = new FormData(form);
+    // Multi-Select: alle ausgewählten Optionen einsammeln
+    const lbSelect = document.getElementById("localbusiness_branch_ids");
+    if (lbSelect) {
+        formData.delete("localbusiness_branch_ids[]");
+        Array.from(lbSelect.selectedOptions).forEach(opt => {
+            formData.append("localbusiness_branch_ids[]", opt.value);
+        });
+    }
     formData.append("action", "save_website_config");
     formData.append("article_id", currentArticleId);
-    
     fetch(window.location.href, {
         method: "POST",
         body: formData
     })
     .then(response => response.text())
     .then(data => {
-        // Seite neu laden, um Erfolgsmeldung zu sehen
-        window.location.reload();
+        // Erfolgsmeldung anzeigen, kein Reload
+        if (typeof rex !== "undefined" && typeof rex.flashMessage === "function") {
+            rex.flashMessage("Website Schema wurde gespeichert.", "success");
+        } else {
+            alert("Website Schema wurde gespeichert.");
+        }
+        // Optional: Vorschau neu laden
+        updatePreviewLive();
     })
     .catch(error => {
         alert("Fehler beim Speichern");
@@ -446,7 +480,7 @@ function updatePreviewLive() {
 
 document.addEventListener("DOMContentLoaded", function() {
     // Event Listener für Formular-Felder
-    ["name_field", "description_field", "image_field", "localbusiness_branch_id", "active"].forEach(fieldId => {
+    ["name_field", "description_field", "image_field", "localbusiness_branch_ids", "active"].forEach(fieldId => {
         const field = document.getElementById(fieldId);
         if (field) {
             field.addEventListener("change", updatePreviewLive);
@@ -596,15 +630,13 @@ echo '</select>
                     </div>
                     
                     <div class="form-group">
-                        <label for="localbusiness_branch_id">LocalBusiness Filiale:</label>
-                        <select id="localbusiness_branch_id" name="localbusiness_branch_id" class="form-control selectpicker" data-live-search="true" data-size="10">';
-
+                        <label for="localbusiness_branch_ids">LocalBusiness Standorte:</label>
+                        <select id="localbusiness_branch_ids" name="localbusiness_branch_ids[]" class="form-control selectpicker" data-live-search="true" data-size="10" multiple>';
 foreach ($availableBranches as $value => $label) {
     echo '<option value="' . htmlspecialchars($value) . '">' . htmlspecialchars($label) . '</option>';
 }
-
 echo '</select>
-                        <small class="help-block">Welche Filiale gilt für diesen Artikel? "Keine" für allgemeine Seiten wie Impressum.</small>
+                        <small class="help-block">Mehrere Standorte auswählbar. "Keine" für allgemeine Seiten wie Impressum.</small>
                     </div>
                     
                     <div class="form-group">

@@ -242,9 +242,15 @@ if (!function_exists('jsonld_render')) {
             
             // Branch-ID für diesen Artikel laden
             $branchKey = 'article_branch_' . $articleId . '_clang_' . (int) $article->getClangId();
-            $selectedBranchId = (int) rex_config::get('jsonld_manager', $branchKey, 0);
+            $storedBranchConfig = rex_config::get('jsonld_manager', $branchKey, 0);
+            if (is_array($storedBranchConfig)) {
+                $selectedBranchIds = array_values(array_unique(array_filter(array_map('intval', $storedBranchConfig))));
+            } else {
+                $selectedBranchId = (int) $storedBranchConfig;
+                $selectedBranchIds = $selectedBranchId > 0 ? [$selectedBranchId] : [];
+            }
             
-            // Filial-Fallback ermitteln: Hauptfiliale, sonst erste aktive Filiale
+            // Filial-Fallback ermitteln: Hauptstandort, sonst erste aktive Standort
             $fallbackBranchId = null;
             try {
                 $sql = rex_sql::factory();
@@ -261,10 +267,10 @@ if (!function_exists('jsonld_render')) {
                 // Fehler ignorieren
             }
             
-            $useBranchId = $selectedBranchId > 0 ? $selectedBranchId : $fallbackBranchId;
+            $useBranchIds = !empty($selectedBranchIds) ? $selectedBranchIds : ($fallbackBranchId ? [$fallbackBranchId] : []);
             
             // Zentrale Generator-Klasse verwenden
-            $jsonLdData = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::generateForArticle($articleId, $useBranchId, true, (int) $article->getClangId());
+            $jsonLdData = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::generateForArticle($articleId, $useBranchIds, true, (int) $article->getClangId());
             
             if (!empty($jsonLdData) && is_array($jsonLdData)) {
                 $payload = jsonld_normalize_output_payload($jsonLdData);
@@ -289,7 +295,7 @@ if (!function_exists('jsonld_render')) {
                     $meta = [
                         'article_id' => (int) $articleId,
                         'clang_id' => (int) $article->getClangId(),
-                        'branch_id' => $useBranchId,
+                        'branch_ids' => $useBranchIds,
                         'types' => array_values(array_unique($types))
                     ];
                     

@@ -56,7 +56,7 @@ $sql->setQuery('
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ');
 
-// Tabelle: rex_jsonld_localbusiness_branches - Filialenverwaltung  
+// Tabelle: rex_jsonld_localbusiness_branches - Standorteverwaltung  
 $sql->setQuery('
     CREATE TABLE IF NOT EXISTS `'.rex::getTable('jsonld_localbusiness_branches').'` (
         `id` int(10) unsigned NOT NULL AUTO_INCREMENT,

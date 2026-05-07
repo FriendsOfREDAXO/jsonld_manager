@@ -54,22 +54,22 @@ class Renderer
             }
 
             // Branch-ID für diesen Artikel laden
-            $useBranchId = self::resolveBranchIdForArticle($article->getId(), (int) $article->getClangId());
-            $cacheKey = md5($article->getId() . '_' . $article->getClangId() . '_' . ($schemaType ?: 'auto') . '_' . (string) ($useBranchId ?? 0) . '_' . serialize($additionalData));
+            $useBranchIds = self::resolveBranchIdsForArticle($article->getId(), (int) $article->getClangId());
+            $cacheKey = md5($article->getId() . '_' . $article->getClangId() . '_' . ($schemaType ?: 'auto') . '_' . serialize($useBranchIds) . '_' . serialize($additionalData));
 
             // Cache-Check
             if (isset(self::$cache[$cacheKey])) {
                 if ($isDebugMode) {
                     self::addDebugInfo('cache_hit', 'Cache-Treffer', [
                         'cache_key' => $cacheKey,
-                        'branch_id' => $useBranchId
+                        'branch_ids' => $useBranchIds
                     ]);
                 }
                 return self::$cache[$cacheKey];
             }
             
             // Einheitliche Backend/Frontend-Logik: zentralen Generator verwenden
-            $jsonLdItems = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::generateForArticle($article->getId(), $useBranchId, $isDebugMode, (int) $article->getClangId());
+            $jsonLdItems = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::generateForArticle($article->getId(), $useBranchIds, $isDebugMode, (int) $article->getClangId());
             
             if (empty($jsonLdItems)) {
                 return '';
@@ -101,13 +101,13 @@ class Renderer
                     'items_count' => count($jsonLdItems ?? []),
                     'output_length' => strlen($output),
                     'cached' => self::getSetting($addon, 'cache_enabled', true),
-                    'branch_id' => $useBranchId
+                    'branch_ids' => $useBranchIds
                 ]);
                 
                 self::outputConsoleDebug('JSON-LD erfolgreich generiert', [
                     'JSON-LD Items' => count($jsonLdItems ?? []),
                     'Output-Länge' => strlen($output) . ' Zeichen',
-                    'Branch-ID' => $useBranchId,
+                    'Branch-IDs' => implode(', ', $useBranchIds),
                     'Gecacht' => self::getSetting($addon, 'cache_enabled', true) ? 'Ja' : 'Nein'
                 ]);
                 
@@ -231,7 +231,14 @@ class Renderer
         }
         
         $config = json_decode($sql->getValue('config'), true) ?: [];
-        $branchId = $config['localbusiness_branch_id'] ?? 0;
+        $branchIds = $config['localbusiness_branch_ids'] ?? [];
+        if (!is_array($branchIds)) {
+            $branchIds = $branchIds ? [(int) $branchIds] : [];
+        }
+        if (empty($branchIds) && !empty($config['localbusiness_branch_id'])) {
+            $branchIds = [(int) $config['localbusiness_branch_id']];
+        }
+        $branchId = (int) ($branchIds[0] ?? 0);
         
         if ($branchId <= 0) {
             return null; // Keine LocalBusiness Zuordnung
@@ -668,30 +675,36 @@ class Renderer
      * @param int $articleId
      * @return int|null
      */
-    private static function resolveBranchIdForArticle($articleId, $clangId = 1)
+    private static function resolveBranchIdsForArticle($articleId, $clangId = 1)
     {
         $localizedKey = 'article_branch_' . $articleId . '_clang_' . (int) $clangId;
-        $selectedBranchId = (int) \rex_config::get('jsonld_manager', $localizedKey, 0);
-        if ($selectedBranchId > 0) {
-            return $selectedBranchId;
+        $storedBranchConfig = \rex_config::get('jsonld_manager', $localizedKey, 0);
+        if (is_array($storedBranchConfig)) {
+            $selectedBranchIds = array_values(array_unique(array_filter(array_map('intval', $storedBranchConfig))));
+        } else {
+            $selectedBranchId = (int) $storedBranchConfig;
+            $selectedBranchIds = $selectedBranchId > 0 ? [$selectedBranchId] : [];
+        }
+        if (!empty($selectedBranchIds)) {
+            return $selectedBranchIds;
         }
 
         try {
             $sql = \rex_sql::factory();
             $sql->setQuery('SELECT id FROM ' . \rex::getTable('jsonld_localbusiness_branches') . ' WHERE is_main_branch = 1 AND clang_id = ? LIMIT 1', [(int) $clangId]);
             if ($sql->getRows() > 0) {
-                return (int) $sql->getValue('id');
+                return [(int) $sql->getValue('id')];
             }
 
             $sql->setQuery('SELECT id FROM ' . \rex::getTable('jsonld_localbusiness_branches') . ' WHERE clang_id = ? ORDER BY sort_order ASC, id ASC LIMIT 1', [(int) $clangId]);
             if ($sql->getRows() > 0) {
-                return (int) $sql->getValue('id');
+                return [(int) $sql->getValue('id')];
             }
         } catch (\Exception $e) {
             // Fallback: Keine Branch verwenden
         }
 
-        return null;
+        return [];
     }
 
     /**

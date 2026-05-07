@@ -14,12 +14,6 @@ require_once __DIR__ . '/lib/JsonLdGenerator.php';
 require_once __DIR__ . '/lib/LanguageConfig.php';
 require_once __DIR__ . '/lib/DynamicJsonLd.php';
 
-// Backend CSS und JS einbinden
-if (rex::isBackend() && rex_be_controller::getCurrentPagePart(1) == 'jsonld_manager') {
-    rex_view::addCssFile($this->getAssetsUrl('css/jsonld_manager.css'));
-    rex_view::addJsFile($this->getAssetsUrl('js/jsonld_manager.js'));
-}
-
 // Nur im Frontend
 if (!rex::isBackend() && rex_addon::get('jsonld_manager')->isAvailable()) {
     // Extension Point für automatische JSON-LD Ausgabe
@@ -84,10 +78,11 @@ rex_extension::register('ART_UPDATED', function($ep) {
 
 // Bedingte Menüanzeige für Dynamische URLs
 if (rex::isBackend()) {
-    // CSS-Datei im Backend laden
-    rex_view::addCssFile(rex_url::addonAssets('jsonld_manager', 'jsonld_manager.css'));
-    // JS-Datei im Backend laden (u.a. für Select Live-Suche)
-    rex_view::addJsFile(rex_url::addonAssets('jsonld_manager', 'js/jsonld_manager.js'));
+    // CSS/JS nur auf Addon-Seiten im Backend laden
+    if (rex_be_controller::getCurrentPagePart(1) === 'jsonld_manager') {
+        rex_view::addCssFile(rex_url::addonAssets('jsonld_manager', 'css/jsonld_manager.css'));
+        rex_view::addJsFile(rex_url::addonAssets('jsonld_manager', 'js/jsonld_manager.js'));
+    }
     
     $hideDynamicUrlsSubpage = static function (): void {
         $filter = static function ($page) {
