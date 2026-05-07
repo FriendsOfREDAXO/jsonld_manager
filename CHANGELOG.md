@@ -2,6 +2,13 @@
 
 Dieses Changelog wird ab Version `1.0.0` neu geführt.
 
+## 1.0.0-beta.12 (07. Mai 2026)
+
+**Bugfixes & Wartung:**
+- Update-Fehler: Cache-Löschung nach Update (rex_delete_cache) ergänzt
+- CSS/JS: Assets werden korrekt und nur im Backend eingebunden (boot.php)
+- Version auf 1.0.0-beta.12 erhöht
+
 ## 1.0.0-beta.11 (06. Mai 2026)
 
 **Sicherheit & Veröffentlichung:**

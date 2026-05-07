@@ -298,6 +298,13 @@ $addon->setConfig($config);
 
 rex_cache::deleteNamespace('jsonld_manager');
 
+// Cache nach Update löschen (Fix für Update-Fehler)
+if (function_exists('rex_delete_cache')) {
+    rex_delete_cache();
+} else if (method_exists($addon, 'clearCache')) {
+    $addon->clearCache();
+}
+
 echo rex_view::success(
     '<h4>JSON-LD Manager Update erfolgreich</h4>'
     . '<p><strong>Version ' . htmlspecialchars($installedVersion) . ' → ' . htmlspecialchars($currentVersion) . '</strong></p>'
