@@ -52,6 +52,32 @@ if (!rex::isBackend() && rex_addon::get('jsonld_manager')->isAvailable()) {
             // Dynamisches URL-JSON-LD zusätzlich anhängen (falls vorhanden)
             $jsonLdOutput .= $dynamicJsonLdOutput;
             
+            // Legacy-Meta-Daten ausgeben (nach letztem <meta ...> im <head>)
+            $legacyMeta = trim(rex_config::get('jsonld_manager', 'legacy_meta_raw', ''));
+            if ($legacyMeta !== '') {
+                // Nur ausgeben, wenn Template erlaubt ist (wie bei JSON-LD)
+                if (function_exists('jsonld_is_template_output_allowed') && jsonld_is_template_output_allowed($article)) {
+                    // Suche alle <meta ...> im <head>
+                    $headStart = stripos($content, '<head');
+                    $headEnd = stripos($content, '</head>');
+                    if ($headStart !== false && $headEnd !== false && $headEnd > $headStart) {
+                        $headContent = substr($content, $headStart, $headEnd - $headStart);
+                        // Finde alle <meta ...> Tags
+                        preg_match_all('/<meta[^>]*>/i', $headContent, $metaMatches, PREG_OFFSET_CAPTURE);
+                        if (!empty($metaMatches[0])) {
+                            $lastMeta = end($metaMatches[0]);
+                            $insertPos = $headStart + $lastMeta[1] + strlen($lastMeta[0]);
+                            $content = substr($content, 0, $insertPos) . "\n" . $legacyMeta . "\n" . substr($content, $insertPos);
+                        } else {
+                            // Kein <meta> gefunden, vor </head> einfügen
+                            $content = str_replace('</head>', $legacyMeta . "\n</head>", $content);
+                        }
+                    } else {
+                        // Kein <head> gefunden, vor </head> einfügen
+                        $content = str_replace('</head>', $legacyMeta . "\n</head>", $content);
+                    }
+                }
+            }
             if (!empty($jsonLdOutput)) {
                 $content = str_replace('</head>', $jsonLdOutput . '</head>', $content);
             }

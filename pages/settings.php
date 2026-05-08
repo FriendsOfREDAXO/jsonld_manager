@@ -124,21 +124,19 @@ if ($availableTemplates) {
 ob_start();
 ?>
 
-<div class="row">
-    <div class="col-md-6">
-        
-        <form method="post" action="" class="form-horizontal" id="jsonld-settings-form">
+
+<form method="post" action="" class="form-horizontal" id="jsonld-settings-form">
+    <div class="row">
+        <div class="col-md-6">
             <input type="hidden" name="func" value="update_settings">
             <input type="hidden" name="domain_id" value="<?= $activeDomainId ?>">
             <?= $csrfTokenField ?>
-            
             <!-- Grundeinstellungen Panel -->
             <div class="panel panel-primary">
                 <header class="panel-heading">
                     <h1 class="panel-title">Grundeinstellungen</h1>
                 </header>
                 <div class="panel-body">
-                    
                     <div class="form-group">
                         <label class="col-sm-4 control-label">Automatische Ausgabe</label>
                         <div class="col-sm-8">
@@ -151,7 +149,6 @@ ob_start();
                             <small class="help-block">Wenn aktiviert, wird JSON-LD automatisch über Extension Points in das Template eingebunden.</small>
                         </div>
                     </div>
-                    
                     <div class="form-group">
                         <label class="col-sm-4 control-label">Performance</label>
                         <div class="col-sm-8">
@@ -162,7 +159,6 @@ ob_start();
                                 </label>
                             </div>
                             <small class="help-block">Verbessert die Performance durch Zwischenspeicherung der generierten JSON-LD Strukturen.</small>
-                            
                             <!-- Cache löschen Button -->
                             <div style="margin-top: 10px;">
                                 <a href="<?= rex_url::currentBackendPage(['func' => 'clear_cache'] + $csrfToken->getUrlParams()) ?>" 
@@ -173,7 +169,6 @@ ob_start();
                             </div>
                         </div>
                     </div>
-                    
                     <div class="form-group">
                         <label class="col-sm-4 control-label">Validierung</label>
                         <div class="col-sm-8">
@@ -186,7 +181,6 @@ ob_start();
                             <small class="help-block">Validiert JSON-LD vor der Ausgabe und zertifiziert Syntax-Konformität.</small>
                         </div>
                     </div>
-                    
                     <div class="form-group">
                         <label class="col-sm-4 control-label">Debug-Modus</label>
                         <div class="col-sm-8">
@@ -199,56 +193,44 @@ ob_start();
                             <small class="help-block">Wenn aktiviert, werden detaillierte Debug-Ausgaben als JSON-LD Overlay im Frontend angezeigt.</small>
                         </div>
                     </div>
-                    
                 </div>
             </div>
-            
-    </div>
-    
-    <div class="col-md-6">
-        
-        <!-- Domain-Auswahl (nur bei Multi-Domain) -->
-        <?php if (DomainConfig::isMultiDomain()): ?>
-        <div class="panel panel-info">
-            <header class="panel-heading">
-                <h1 class="panel-title">Domain-Konfiguration</h1>
-            </header>
-            <div class="panel-body">
-                <?= DomainConfig::renderDomainSelect($activeDomainId) ?>
-                <p class="help-block">Wählen Sie die Domain aus, für die Sie die Einstellungen konfigurieren möchten. Jede Domain wird separat verwaltet.</p>
-            </div>
         </div>
-        <?php endif; ?>
-        
-        <!-- Template-Integration Panel -->
-        <div class="panel panel-default">
-            <header class="panel-heading">
-                <h1 class="panel-title">Template-Integration</h1>
-            </header>
-            <div class="panel-body">
-                
-                <div class="form-group">
-                    <label class="col-sm-12 control-label">Templates für JSON-LD</label>
-                    <div class="col-sm-12">
-                        <select multiple name="template_ids[]" class="form-control selectpicker" data-live-search="true" data-size="10" size="8" id="jsonld-template-select">
-                            <?= $templateOptions ?>
-                        </select>
-                        <small class="help-block">Wählen Sie die Templates aus, in denen JSON-LD automatisch ausgegeben werden soll.</small>
+        <div class="col-md-6">
+            <!-- Domain-Auswahl (nur bei Multi-Domain) -->
+            <?php if (DomainConfig::isMultiDomain()): ?>
+            <div class="panel panel-info">
+                <header class="panel-heading">
+                    <h1 class="panel-title">Domain-Konfiguration</h1>
+                </header>
+                <div class="panel-body">
+                    <?= DomainConfig::renderDomainSelect($activeDomainId) ?>
+                    <p class="help-block">Wählen Sie die Domain aus, für die Sie die Einstellungen konfigurieren möchten. Jede Domain wird separat verwaltet.</p>
+                </div>
+            </div>
+            <?php endif; ?>
+            <!-- Template-Integration Panel -->
+            <div class="panel panel-default">
+                <header class="panel-heading">
+                    <h1 class="panel-title">Template-Integration</h1>
+                </header>
+                <div class="panel-body">
+                    <div class="form-group">
+                        <div class="col-sm-12">
+                            <label for="jsonld-template-select" class="control-label" style="font-weight:600; margin-bottom:8px;">Templates für JSON-LD</label>
+                            <select multiple name="template_ids[]" class="form-control selectpicker" data-live-search="true" data-size="10" size="8" id="jsonld-template-select" style="margin-bottom:8px;">
+                                <?= $templateOptions ?>
+                            </select>
+                            <small class="help-block">Wählen Sie die Templates aus, in denen JSON-LD automatisch ausgegeben werden soll.</small>
+                        </div>
                     </div>
                 </div>
-                
             </div>
         </div>
-        
     </div>
-</div>
-
-<div class="panel-footer text-right">
-    <button type="submit" class="btn btn-apply" form="jsonld-settings-form">
-        Speichern
-    </button>
-</div>
-
+    <div class="rex-form-panel-footer" style="padding: 12px; background: rgba(0,0,0,.28); border-top: 1px solid rgba(255,255,255,.08); display: flex; justify-content: flex-end; align-items: center;">
+        <button type="submit" class="btn btn-apply" form="jsonld-settings-form">Speichern</button>
+    </div>
 </form>
 
 <?php

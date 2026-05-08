@@ -1,6 +1,23 @@
+
 # Changelog
 
 Dieses Changelog wird ab Version `1.0.0` neu geführt.
+
+## 1.0.0-beta.14 (08. Mai 2026)
+
+**Neu:**
+- Legacy Meta-Integration: Meta-/SEO-Tags können jetzt zentral im Backend gepflegt werden (Seite "Legacy Meta Integration").
+- Sichere Validierung: Nur reine Meta-Tags und statisches HTML erlaubt, PHP/JS/Event-Handler werden blockiert.
+- Frontend-Ausgabe: Die gepflegten Meta-Tags werden im HTML-Head nach dem letzten <meta> Tag (Fallback: vor </head>) ausgegeben – nur in aktivierten Templates.
+- Ausgabe erfolgt über OUTPUT_FILTER Extension Point, Template-Check wie bei JSON-LD.
+- README.md um Abschnitt "Legacy Meta-Integration" erweitert.
+- Versionsnummer auf 1.0.0-beta.14 erhöht.
+
+**Technik:**
+- Keine bestehenden Funktionen oder Ausgaben des AddOns beeinträchtigt.
+
+**Hinweis:**
+- Die Funktion richtet sich an Entwickler/Redakteure, die alte SEO-/Meta-Tags übernehmen oder spezielle Meta-Informationen ergänzen möchten.
 
 ## 1.0.0-beta.13 (07. Mai 2026)
 

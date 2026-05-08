@@ -116,7 +116,28 @@ Das ist optional und nicht nötig, um die normale JSON-LD-Ausgabe für Website u
 - Branch-spezifische LocalBusiness-Daten pro Sprache
 - Ausgabe bereinigt leere Werte rekursiv (nur befüllte JSON-LD Felder)
 
-## Mehrsprachigkeit
+
+
+
+## Legacy Meta-Integration
+
+Mit der Funktion **Legacy Meta-Integration** können alte oder zusätzliche Meta-/SEO-Tags zentral im Backend gepflegt werden. Diese werden – zusätzlich zur JSON-LD-Ausgabe – im HTML-Head nach dem letzten vorhandenen <meta> Tag ausgegeben (nur in den unter Einstellungen aktivierten Templates).
+
+**Sicherheit:**
+- Es sind ausschließlich reine Meta-Tags und statisches HTML erlaubt. PHP, JavaScript, Event-Handler und unsichere Tags werden automatisch blockiert.
+- Die Eingabe erfolgt über ein eigenes Backend-Formular mit Validierung und CSRF-Schutz.
+
+**Funktionsweise:**
+- Die gepflegten Meta-Tags werden im Frontend-Head nach dem letzten <meta> Tag eingefügt (Fallback: vor </head>).
+- Die Ausgabe erfolgt nur in Templates, die in den AddOn-Einstellungen aktiviert wurden.
+- Die Daten werden zentral in der REDAXO-Konfiguration gespeichert.
+
+**Typische Anwendungsfälle:**
+- Migration alter SEO-/Meta-Tags aus früheren Systemen
+- Ergänzung spezieller Meta-Informationen, die nicht über REDAXO-Metainfo gepflegt werden
+
+**Hinweis:**
+Die Funktion richtet sich an Entwickler und Redakteure, die volle Kontrolle über die Meta-Ausgabe benötigen, ohne die Templates direkt anpassen zu müssen.
 
 Das AddOn ist auf Mehrsprachigkeit ausgelegt:
 

@@ -1,5 +1,5 @@
 package: jsonld_manager
-version: '1.0.0-beta.13'
+version: '1.0.0-beta.14'
 author: 'Friends Of REDAXO'
 supportpage: https://github.com/FriendsOfREDAXO/jsonld_manager
 
@@ -27,7 +27,7 @@ page:
                     title: LocalBusiness Schema
                     subPath: pages/global_localbusiness.php
         info:
-            title: 'Info'
+            title: Info
             itemclass: pull-right
             subpages:
                 help:
@@ -42,7 +42,13 @@ page:
         settings:
             title: Einstellungen
             itemclass: pull-right
-            subPath: pages/settings.php
+            subpages:
+                setting:
+                    title: Einstellungen
+                    subPath: pages/settings.php
+                legacy-integration:
+                    title: Legacy Meta Integration
+                    subPath: pages/setting_legacy_meta_integration.php
             
 requires:
     php: '>=8.3'
