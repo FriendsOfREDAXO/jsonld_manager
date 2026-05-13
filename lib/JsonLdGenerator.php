@@ -143,49 +143,7 @@ class JsonLdGenerator
             }
         }
         
-        // 3. LocalBusiness Schema(s) (falls konfiguriert)
-        if (!empty($branchConfigs)) {
-            foreach ($branchConfigs as $branchConfigEntry) {
-                $localBusinessSchema = self::buildLocalBusinessSchema($branchConfigEntry['config'], $branchConfigEntry['branch_id']);
-                if (!$localBusinessSchema) {
-                    continue;
-                }
-                $jsonLdItems[] = $localBusinessSchema;
-
-                if ($isDebugMode) {
-                    self::debugLog('LocalBusiness Schema hinzugefügt', [
-                        'name' => $branchConfigEntry['config']['name'] ?? '',
-                        'branch_id' => $branchConfigEntry['branch_id'],
-                        'has_address' => !empty($localBusinessSchema['address']),
-                        'has_geo' => !empty($localBusinessSchema['geo'])
-                    ]);
-                }
-            }
-        } elseif (!empty($localBusinessConfig['name'])) {
-            $localBusinessSchema = self::buildLocalBusinessSchema($localBusinessConfig, $primaryBranchId);
-            if ($localBusinessSchema) {
-                $jsonLdItems[] = $localBusinessSchema;
-            }
-
-            if ($isDebugMode) {
-                self::debugLog('LocalBusiness Schema hinzugefügt', [
-                    'name' => $localBusinessConfig['name'],
-                    'branch_id' => $primaryBranchId,
-                    'has_address' => !empty($localBusinessSchema['address']),
-                    'has_geo' => !empty($localBusinessSchema['geo'])
-                ]);
-            }
-        } else {
-            if ($isDebugMode) {
-                self::debugLog('LocalBusiness Schema ÜBERSPRUNGEN', [
-                    'reason' => 'name empty or missing',
-                    'branch_id' => $primaryBranchId,
-                    'config_keys' => $localBusinessConfig ? array_keys($localBusinessConfig) : 'config is empty'
-                ]);
-            }
-        }
-        
-        // 4. WebPage Schema (aktuelle Seite) oder Dynamisches Schema
+        // 3. WebPage Schema (aktuelle Seite) oder Dynamisches Schema
         if ($articleConfig['webpage_enabled']) {
             // Dynamisches URL-Profil prüfen
             $dynamicUrlMapping = self::getDynamicUrlMapping($articleId, $effectiveClangId);
@@ -319,6 +277,48 @@ class JsonLdGenerator
                 if ($isDebugMode) {
                     self::debugLog('WebPage Schema hinzugefügt', ['url' => $webPageSchema['url']]);
                 }
+            }
+        }
+
+        // 4. LocalBusiness Schema(s) (falls konfiguriert)
+        if (!empty($branchConfigs)) {
+            foreach ($branchConfigs as $branchConfigEntry) {
+                $localBusinessSchema = self::buildLocalBusinessSchema($branchConfigEntry['config'], $branchConfigEntry['branch_id']);
+                if (!$localBusinessSchema) {
+                    continue;
+                }
+                $jsonLdItems[] = $localBusinessSchema;
+
+                if ($isDebugMode) {
+                    self::debugLog('LocalBusiness Schema hinzugefügt', [
+                        'name' => $branchConfigEntry['config']['name'] ?? '',
+                        'branch_id' => $branchConfigEntry['branch_id'],
+                        'has_address' => !empty($localBusinessSchema['address']),
+                        'has_geo' => !empty($localBusinessSchema['geo'])
+                    ]);
+                }
+            }
+        } elseif (!empty($localBusinessConfig['name'])) {
+            $localBusinessSchema = self::buildLocalBusinessSchema($localBusinessConfig, $primaryBranchId);
+            if ($localBusinessSchema) {
+                $jsonLdItems[] = $localBusinessSchema;
+            }
+
+            if ($isDebugMode) {
+                self::debugLog('LocalBusiness Schema hinzugefügt', [
+                    'name' => $localBusinessConfig['name'],
+                    'branch_id' => $primaryBranchId,
+                    'has_address' => !empty($localBusinessSchema['address']),
+                    'has_geo' => !empty($localBusinessSchema['geo'])
+                ]);
+            }
+        } else {
+            if ($isDebugMode) {
+                self::debugLog('LocalBusiness Schema ÜBERSPRUNGEN', [
+                    'reason' => 'name empty or missing',
+                    'branch_id' => $primaryBranchId,
+                    'config_keys' => $localBusinessConfig ? array_keys($localBusinessConfig) : 'config is empty'
+                ]);
             }
         }
         
@@ -458,18 +458,32 @@ class JsonLdGenerator
         return $branchConfigs;
     }
 
-    private static function buildLocalBusinessSchema(array $localBusinessConfig, $branchId = null): ?array
-    {
-        if (empty($localBusinessConfig['name'])) {
-            return null;
-        }
 
-        $localBusinessSchema = [
-            '@context' => 'https://schema.org',
-            '@type' => $localBusinessConfig['business_type'] ?? 'LocalBusiness',
-            '@id' => rtrim(\rex::getServer(), '/') . '/#localbusiness' . ($branchId ? '_' . $branchId : ''),
-            'name' => $localBusinessConfig['name']
-        ];
+            private static function buildLocalBusinessSchema(array $localBusinessConfig, $branchId = null): ?array
+            {
+
+            if (empty($localBusinessConfig['name'])) {
+                return null;
+            }
+
+            // Bugfix: @type muss aus businessType (Backend) oder business_type (Fallback) kommen
+            $type = $localBusinessConfig['businessType'] ?? $localBusinessConfig['business_type'] ?? 'LocalBusiness';
+            $localBusinessSchema = [
+                '@context' => 'https://schema.org',
+                '@type' => $type,
+                '@id' => rtrim(\rex::getServer(), '/') . '/#localbusiness' . ($branchId ? '_' . $branchId : ''),
+                'name' => $localBusinessConfig['name']
+            ];
+
+            // hasMap ergänzen, wenn gesetzt
+            if (!empty($localBusinessConfig['hasMap'])) {
+                $localBusinessSchema['hasMap'] = $localBusinessConfig['hasMap'];
+            }
+
+        // Preisbereich ergänzen, wenn gesetzt
+        if (!empty($localBusinessConfig['priceRange'])) {
+            $localBusinessSchema['priceRange'] = $localBusinessConfig['priceRange'];
+        }
 
         if (!empty($localBusinessConfig['url'])) {
             $localBusinessSchema['url'] = $localBusinessConfig['url'];

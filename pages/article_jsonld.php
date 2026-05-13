@@ -13,38 +13,6 @@ $activeDomainId = DomainConfig::getActiveDomainId();
 $csrfToken = rex_csrf_token::factory('jsonld_manager');
 $csrfTokenField = $csrfToken->getHiddenField();
 
-function jsonld_manager_article_branch_key(int $articleId, int $clangId): string {
-    if (DomainConfig::isMultiDomain()) {
-        $domainId = DomainConfig::getActiveDomainId();
-        return 'article_branch_' . $articleId . '_clang_' . $clangId . '_domain_' . $domainId;
-    }
-    return 'article_branch_' . $articleId . '_clang_' . $clangId;
-}
-
-function jsonld_manager_normalize_branch_ids($value): array {
-    if (is_array($value)) {
-        $branchIds = $value;
-    } elseif (is_string($value) && $value !== '') {
-        $decoded = json_decode($value, true);
-        if (is_array($decoded)) {
-            $branchIds = $decoded;
-        } else {
-            $branchIds = explode(',', $value);
-        }
-    } elseif ($value) {
-        $branchIds = [$value];
-    } else {
-        $branchIds = [];
-    }
-
-    $branchIds = array_map('intval', $branchIds);
-    $branchIds = array_values(array_unique(array_filter($branchIds, static function ($id) {
-        return $id > 0;
-    })));
-
-    return $branchIds;
-}
-
 function jsonld_manager_custom_json_key(int $articleId, int $clangId): string {
     if (DomainConfig::isMultiDomain()) {
         $domainId = DomainConfig::getActiveDomainId();
@@ -53,38 +21,17 @@ function jsonld_manager_custom_json_key(int $articleId, int $clangId): string {
     return 'custom_json_' . $articleId . '_clang_' . $clangId;
 }
 
-function jsonld_manager_disable_json_key(int $articleId, int $clangId): string {
-    if (DomainConfig::isMultiDomain()) {
-        $domainId = DomainConfig::getActiveDomainId();
-        return 'disable_json_' . $articleId . '_clang_' . $clangId . '_domain_' . $domainId;
-    }
-    return 'disable_json_' . $articleId . '_clang_' . $clangId;
-}
-
-function jsonld_manager_get_article_branch_id(int $articleId, ?int $clangId = null): int {
-    $branchIds = jsonld_manager_get_article_branch_ids($articleId, $clangId);
-    return $branchIds[0] ?? 0;
-}
-
-function jsonld_manager_get_article_branch_ids(int $articleId, ?int $clangId = null): array {
-    $clangId = $clangId ?? \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId();
-    $localizedKey = jsonld_manager_article_branch_key($articleId, $clangId);
-    return jsonld_manager_normalize_branch_ids(rex_config::get('jsonld_manager', $localizedKey, []));
-}
-
-// Funktion zum Laden der verfügbaren LocalBusiness-Standorte
-function getLocalBusinessBranches() {
+function getLocalBusinessBranches(): array
+{
     $activeClangId = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId();
     $activeDomainId = DomainConfig::getActiveDomainId();
-    
+
     try {
         $sql = rex_sql::factory();
-        
-        // Prüfe ob domain_id Spalte existiert
         $checkDomainColumn = rex_sql::factory();
         $checkDomainColumn->setQuery('SHOW COLUMNS FROM ' . rex::getTable('jsonld_localbusiness_branches') . ' LIKE "domain_id"');
         $hasDomainColumn = $checkDomainColumn->getRows() > 0;
-        
+
         if ($hasDomainColumn && DomainConfig::isMultiDomain()) {
             $sql->setQuery('SELECT id, branch_name, is_main_branch FROM ' . rex::getTable('jsonld_localbusiness_branches') . ' 
                            WHERE clang_id = ? AND (domain_id = ? OR domain_id IS NULL)

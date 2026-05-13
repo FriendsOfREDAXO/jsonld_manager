@@ -677,14 +677,12 @@ class Renderer
      */
     private static function resolveBranchIdsForArticle($articleId, $clangId = 1)
     {
-        $localizedKey = 'article_branch_' . $articleId . '_clang_' . (int) $clangId;
-        $storedBranchConfig = \rex_config::get('jsonld_manager', $localizedKey, 0);
-        if (is_array($storedBranchConfig)) {
-            $selectedBranchIds = array_values(array_unique(array_filter(array_map('intval', $storedBranchConfig))));
-        } else {
-            $selectedBranchId = (int) $storedBranchConfig;
-            $selectedBranchIds = $selectedBranchId > 0 ? [$selectedBranchId] : [];
+        $selectedBranchIds = [];
+
+        if (function_exists('jsonld_manager_get_article_branch_ids')) {
+            $selectedBranchIds = jsonld_manager_get_article_branch_ids((int) $articleId, (int) $clangId);
         }
+
         if (!empty($selectedBranchIds)) {
             return $selectedBranchIds;
         }

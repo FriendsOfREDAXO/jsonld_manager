@@ -3,6 +3,23 @@
 
 Dieses Changelog wird ab Version `1.0.0` neu geführt.
 
+## 1.0.0-beta.15 (13. Mai 2026)
+
+**Bugfixes / LocalBusiness / Frontend:**
+- Mehrere einem Artikel zugeordnete LocalBusiness-Standorte werden im Frontend jetzt wieder korrekt als eigene Schema-Einträge ausgegeben.
+- Frontend-Auflösung der Branch-Zuordnung liest jetzt konsistent die zentrale Artikel-Zuordnung und berücksichtigt zusätzlich die in `jsonld_schemas` gespeicherten `WebPage`-Zuordnungen.
+- Mehrere unvollständig zentralisierte Helper-Funktionen rund um Branch-Keys, Disable-Keys und Artikel-Branch-IDs ergänzt bzw. repariert.
+- Fehler in `article_jsonld.php` durch doppelte Funktionsdefinitionen und beschädigten Funktionsblock behoben.
+
+**Debug-Overlay / UX:**
+- Reihenfolge der JSON-LD-Ausgabe auf `Organization -> WebSite -> WebPage -> LocalBusiness -> BreadcrumbList` umgestellt.
+- Debug-Tabs für LocalBusiness werden jetzt verständlicher beschriftet und mit `LocalBusiness:` präfixiert.
+- Debug-Kasten im Frontend ist jetzt ein- und ausklappbar.
+- Toggle-Icon im Debug-Kasten korrigiert.
+
+**Hinweis:**
+- Bezieht sich weiterhin auf das Thema aus GitHub Ticket `#1`.
+
 ## 1.0.0-beta.14 (08. Mai 2026)
 
 **Neu:**
