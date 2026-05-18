@@ -1,5 +1,5 @@
 package: jsonld_manager
-version: 'v1.0.0.beta16'
+version: '1.0.0.beta16'
 author: 'Friends Of REDAXO'
 supportpage: https://github.com/FriendsOfREDAXO/jsonld_manager
 
