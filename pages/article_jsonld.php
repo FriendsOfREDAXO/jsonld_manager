@@ -14,11 +14,7 @@ $csrfToken = rex_csrf_token::factory('jsonld_manager');
 $csrfTokenField = $csrfToken->getHiddenField();
 
 function jsonld_manager_custom_json_key(int $articleId, int $clangId): string {
-    if (DomainConfig::isMultiDomain()) {
-        $domainId = DomainConfig::getActiveDomainId();
-        return 'custom_json_' . $articleId . '_clang_' . $clangId . '_domain_' . $domainId;
-    }
-    return 'custom_json_' . $articleId . '_clang_' . $clangId;
+    return \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::getCustomJsonKey($articleId, $clangId);
 }
 
 function getLocalBusinessBranches(): array
@@ -78,13 +74,17 @@ if (rex_request('ajax', 'string') === 'update_branch_json') {
         // Branch-Auswahl für diesen Artikel speichern
         rex_config::set('jsonld_manager', jsonld_manager_article_branch_key($articleId, \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId()), $branchIdsAjax);
         
-        // JSON-LD mit gewählter Standort generieren (ohne leere Werte)
-        $jsonld = generateArticleJsonLd($articleId, $branchIdsAjax);
-        $jsonld = jsonld_manager_build_payload($jsonld);
+        // JSON-LD mit derselben Ausgabe-Pipeline wie Frontend/Backend-Vorschau generieren.
+        $jsonldOutput = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::getArticleOutput(
+            $articleId,
+            null,
+            true,
+            \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId()
+        );
         
         rex_response::sendJson([
             'success' => true,
-            'jsonld' => $jsonld,
+            'jsonld' => $jsonldOutput['payload'] ?: [],
             'branch_ids' => $branchIdsAjax
         ]);
         exit;
@@ -368,33 +368,6 @@ foreach ($articles as $article) {
     }
 }
 
-// JSON-LD für ausgewählten Artikel generieren (nutzt zentrale Klasse)
-function generateArticleJsonLd($articleId, $branchIds = null) {
-    return \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::generateForArticle($articleId, $branchIds, true, \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId());
-}
-
-function jsonld_manager_build_payload(array $jsonLdItems)
-{
-    if (count($jsonLdItems) === 1) {
-        $payload = $jsonLdItems[0];
-        if (function_exists('jsonld_prune_empty_values')) {
-            $payload = jsonld_prune_empty_values($payload);
-        }
-        return $payload;
-    }
-
-    $payload = [
-        '@context' => 'https://schema.org',
-        '@graph' => array_values($jsonLdItems)
-    ];
-
-    if (function_exists('jsonld_prune_empty_values')) {
-        $payload = jsonld_prune_empty_values($payload);
-    }
-
-    return $payload;
-}
-
 // Artikel-Liste vorab generieren
 $articleListRows = '';
 
@@ -414,11 +387,11 @@ foreach ($articles as $article) {
     $levelClass = $level > 0 ? ' article-level-' . $level : '';
     
     // Prüfen ob Custom JSON für diesen Artikel existiert
-    $hasCustomJson = !empty(trim(rex_config::get('jsonld_manager', jsonld_manager_custom_json_key((int) $article['id'], $activeClangId), '')));
-    $isJsonDisabled = rex_config::get('jsonld_manager', jsonld_manager_disable_json_key((int) $article['id'], $activeClangId), false);
+    $hasCustomJson = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::hasCustomJson((int) $article['id'], $activeClangId);
+    $isJsonDisabled = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::isArticleJsonDisabled((int) $article['id'], $activeClangId);
     
     // Anzahl zusätzlicher Nicht-Hauptstandortn ermitteln
-    $assignedBranchIds = jsonld_manager_get_article_branch_ids((int) $article['id'], $activeClangId);
+    $assignedBranchIds = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::getArticleBranchIds((int) $article['id'], $activeClangId);
     $nonMainBranchCount = 0;
     if (!empty($assignedBranchIds)) {
         // Prüfen wie viele zugeordnete Standorte keine Hauptstandort sind
@@ -484,51 +457,24 @@ $isJsonDisabled = false;
 $customJsonRaw = '';
 
 if ($selectedArticle) {
-    // JETZT prüfen ob JSON für diesen Artikel deaktiviert ist (nach POST-Verarbeitung)
-    $isJsonDisabled = rex_config::get('jsonld_manager', jsonld_manager_disable_json_key((int) $selectedArticleId, $activeClangId), false);
-    
+    $customJsonRaw = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::getCustomJson((int) $selectedArticleId, $activeClangId);
+    $branchOverride = $branchId > 0 ? [$branchId] : null;
+    $articleOutput = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::getArticleOutput(
+        (int) $selectedArticleId,
+        $branchOverride,
+        true,
+        $activeClangId
+    );
+
+    $isJsonDisabled = $articleOutput['disabled'];
+    $isCustomJson = $articleOutput['custom'];
+
     if ($isJsonDisabled) {
-        // JSON ist deaktiviert
         $jsonLdOutput = '// JSON-LD ist für diesen Artikel deaktiviert';
+    } elseif ($articleOutput['error']) {
+        $jsonLdOutput = '// JSON-LD Fehler: ' . $articleOutput['error'];
     } else {
-        // Prüfen ob Custom JSON existiert
-        $customJsonRaw = rex_config::get('jsonld_manager', jsonld_manager_custom_json_key((int) $selectedArticleId, $activeClangId), '');
-        
-        if (!empty(trim($customJsonRaw))) {
-            // Custom JSON verwenden
-            $jsonLdOutput = $customJsonRaw;
-            $isCustomJson = true;
-        } else {
-            // Automatisch generiertes JSON verwenden - mit Hauptstandort falls vorhanden
-            $mainBranchId = null;
-            $branches = getLocalBusinessBranches();
-            foreach ($branches as $branch) {
-                if ($branch['is_main']) {
-                    $mainBranchId = $branch['id'];
-                    break;
-                }
-            }
-            
-            // Gespeicherte Branch-Auswahl für diesen Artikel prüfen
-            $selectedBranchIds = jsonld_manager_get_article_branch_ids((int) $selectedArticleId, $activeClangId);
-            $selectedBranchId = $selectedBranchIds[0] ?? 0;
-            
-            // Priorität: URL-Parameter > gespeicherte Config > Hauptstandort
-            if ($branchId > 0) {
-                // URL-Parameter hat höchste Priorität (Live-Vorschau)
-                $useBranchId = [$branchId];
-            } elseif ($selectedBranchId > 0) {
-                // Gespeicherte Config als Fallback
-                $useBranchId = $selectedBranchIds;
-            } else {
-                // Hauptstandort als Standard
-                $useBranchId = $mainBranchId ? [$mainBranchId] : [];
-            }
-            
-            $jsonLdItems = generateArticleJsonLd($selectedArticleId, $useBranchId);
-            $jsonLdOutput = json_encode(jsonld_manager_build_payload($jsonLdItems), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            $isCustomJson = false;
-        }
+        $jsonLdOutput = $articleOutput['json'];
     }
 }
 
@@ -612,19 +558,14 @@ $content = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::renderClangTabs($activ
                     </div>
                     
                     <!-- LocalBusiness Select darunter, auch rechtsbündig -->
-                    ' . (function() use ($selectedArticle, $selectedArticleId, $branchId, $activeClangId, $mainBranchId) {
+                    ' . (function() use ($selectedArticle, $selectedArticleId, $branchId, $activeClangId) {
                         $branches = getLocalBusinessBranches();
                         if (!empty($branches) && count($branches) > 1) {
-                            // Gespeicherte Branch-Auswahl für diesen Artikel laden (jetzt als Array)
                             $savedBranchIds = [];
                             if ($selectedArticle) {
-                                $savedBranchIds = jsonld_manager_get_article_branch_ids((int) $selectedArticleId, $activeClangId);
+                                $savedBranchIds = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::resolveBranchIdsForArticle((int) $selectedArticleId, $activeClangId);
                             }
-                            // URL-Parameter als Auswahl ergänzen
                             $effectiveBranchIds = $savedBranchIds;
-                            if (empty($effectiveBranchIds) && $mainBranchId > 0) {
-                                $effectiveBranchIds[] = $mainBranchId;
-                            }
                             if ($branchId > 0 && !in_array($branchId, $effectiveBranchIds)) {
                                 $effectiveBranchIds[] = $branchId;
                             }

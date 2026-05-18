@@ -127,6 +127,15 @@ if (!$addon->hasConfig()) {
         'integration' => [
             'yrewrite_enabled' => rex_addon::get('yrewrite')->isAvailable(),
             'url_addon_enabled' => rex_addon::get('url')->isAvailable()
+        ],
+        'localbusiness_schema' => [
+            'contactPoint' => [
+                'telephone' => '',
+                'email' => '',
+                'contactType' => '',
+                'availableLanguage' => '',
+                'areaServed' => '',
+            ],
         ]
     ]);
 }

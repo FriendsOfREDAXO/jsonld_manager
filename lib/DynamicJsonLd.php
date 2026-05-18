@@ -135,30 +135,20 @@ function generateDynamicJsonLd($profileId, $dataId) {
             }
         }
         
-        // Leere Werte rekursiv entfernen
-        if (function_exists('jsonld_prune_empty_values')) {
-            $schema = jsonld_prune_empty_values($schema);
-        }
+        $meta = [
+            'article_id' => 0,
+            'clang_id' => (int) rex_clang::getCurrentId(),
+            'branch_id' => null,
+            'types' => [$mapping['schema_type']],
+            'dynamic_profile_id' => (int) $profileId,
+            'dynamic_data_id' => (int) $dataId
+        ];
 
-        // JSON-LD generieren
-        $jsonLd = json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-        $output = '<script type="application/ld+json">' . "\n" . $jsonLd . "\n" . '</script>' . "\n";
-
-        // Debug-Overlay zusätzlich ausgeben (falls aktiviert)
-        if (function_exists('jsonld_is_debug_enabled') && jsonld_is_debug_enabled() && function_exists('jsonld_render_debug_overlay_script')) {
-            $meta = [
-                'article_id' => 0,
-                'clang_id' => (int) rex_clang::getCurrentId(),
-                'branch_id' => null,
-                'types' => [$mapping['schema_type']],
-                'dynamic_profile_id' => (int) $profileId,
-                'dynamic_data_id' => (int) $dataId
-            ];
-            $output .= jsonld_render_debug_overlay_script($schema, $meta);
-        }
-
-        return $output;
+        return JsonLdGenerator::renderPayloadScript(
+            $schema,
+            function_exists('jsonld_is_debug_enabled') && jsonld_is_debug_enabled(),
+            $meta
+        );
         
     } catch (Exception $e) {
         if (rex::isDebugMode()) {

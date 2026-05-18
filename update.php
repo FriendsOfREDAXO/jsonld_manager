@@ -256,6 +256,78 @@ $config['integration'] = array_replace([
     'url_addon_enabled' => rex_addon::get('url')->isAvailable(),
 ], $config['integration']);
 
+$normalizeLocalBusinessContactPoint = static function (array $localBusinessConfig): array {
+    $contactPoint = [];
+
+    if (isset($localBusinessConfig['contactPoint']) && is_array($localBusinessConfig['contactPoint'])) {
+        $contactPoint = $localBusinessConfig['contactPoint'];
+    }
+
+    $legacyMap = [
+        'contactpoint_phone' => 'telephone',
+        'contactpoint_email' => 'email',
+        'contactpoint_type' => 'contactType',
+        'contactpoint_language' => 'availableLanguage',
+        'contactpoint_area_served' => 'areaServed',
+    ];
+
+    foreach ($legacyMap as $legacyKey => $targetKey) {
+        if (!isset($localBusinessConfig[$legacyKey])) {
+            continue;
+        }
+        $value = trim((string) $localBusinessConfig[$legacyKey]);
+        if ($value === '') {
+            continue;
+        }
+        if (!isset($contactPoint[$targetKey]) || trim((string) $contactPoint[$targetKey]) === '') {
+            $contactPoint[$targetKey] = $value;
+        }
+    }
+
+    if (!empty($contactPoint)) {
+        if (isset($contactPoint['availableLanguage']) && is_string($contactPoint['availableLanguage'])) {
+            $languageParts = preg_split('/[\r\n,]+/', $contactPoint['availableLanguage']) ?: [];
+            $languageParts = array_values(array_filter(array_map('trim', $languageParts), static function ($item) {
+                return $item !== '';
+            }));
+
+            if (count($languageParts) > 1) {
+                $contactPoint['availableLanguage'] = $languageParts;
+            } elseif (count($languageParts) === 1) {
+                $contactPoint['availableLanguage'] = $languageParts[0];
+            } else {
+                unset($contactPoint['availableLanguage']);
+            }
+        }
+
+        if (isset($contactPoint['areaServed']) && is_string($contactPoint['areaServed'])) {
+            $areaServedParts = preg_split('/[\r\n,]+/', $contactPoint['areaServed']) ?: [];
+            $areaServedParts = array_values(array_filter(array_map('trim', $areaServedParts), static function ($item) {
+                return $item !== '';
+            }));
+
+            if (count($areaServedParts) > 1) {
+                $contactPoint['areaServed'] = $areaServedParts;
+            } elseif (count($areaServedParts) === 1) {
+                $contactPoint['areaServed'] = $areaServedParts[0];
+            } else {
+                unset($contactPoint['areaServed']);
+            }
+        }
+
+        $contactPoint = array_filter($contactPoint, static function ($value) {
+            if (is_array($value)) {
+                return count($value) > 0;
+            }
+
+            return trim((string) $value) !== '';
+        });
+    }
+
+    $localBusinessConfig['contactPoint'] = $contactPoint;
+    return $localBusinessConfig;
+};
+
 $startClangId = rex_clang::getStartId();
 foreach (['organization_schema', 'website_schema', 'localbusiness_schema'] as $baseKey) {
     $localizedKey = $baseKey . '_clang_' . $startClangId;
@@ -263,6 +335,47 @@ foreach (['organization_schema', 'website_schema', 'localbusiness_schema'] as $b
         $config[$localizedKey] = $config[$baseKey];
         $updates[] = '✅ Bestehende Konfiguration nach Sprach-Keys migriert: ' . $baseKey;
     }
+}
+
+foreach ($config as $configKey => $configValue) {
+    if (!is_array($configValue)) {
+        continue;
+    }
+    if ($configKey === 'localbusiness_schema' || str_starts_with($configKey, 'localbusiness_schema_clang_')) {
+        $config[$configKey] = $normalizeLocalBusinessContactPoint($configValue);
+    }
+}
+
+try {
+    $branchesTable = rex::getTable('jsonld_localbusiness_branches');
+    if ($tableExists($branchesTable)) {
+        $branchRows = $sql->getArray('SELECT id, config FROM `' . $branchesTable . '`');
+        $migratedBranches = 0;
+
+        foreach ($branchRows as $branchRow) {
+            $decodedConfig = json_decode((string) ($branchRow['config'] ?? ''), true);
+            if (!is_array($decodedConfig)) {
+                $decodedConfig = [];
+            }
+
+            $normalizedConfig = $normalizeLocalBusinessContactPoint($decodedConfig);
+            if ($normalizedConfig === $decodedConfig) {
+                continue;
+            }
+
+            $sql->setQuery(
+                'UPDATE `' . $branchesTable . '` SET config = ?, modified = NOW() WHERE id = ?',
+                [json_encode($normalizedConfig), (int) $branchRow['id']]
+            );
+            $migratedBranches++;
+        }
+
+        if ($migratedBranches > 0) {
+            $updates[] = '✅ LocalBusiness ContactPoint-Migration für Standorte durchgeführt (' . $migratedBranches . ')';
+        }
+    }
+} catch (\rex_sql_exception $e) {
+    // Weiches Verhalten: AddOn-Update soll bei optionaler Config-Migration nicht abbrechen
 }
 
 $defaultSchemaConfig = [
@@ -295,8 +408,6 @@ try {
 
 $config['version'] = $currentVersion;
 $addon->setConfig($config);
-
-rex_cache::deleteNamespace('jsonld_manager');
 
 // Cache nach Update löschen (Fix für Update-Fehler)
 if (function_exists('rex_delete_cache')) {

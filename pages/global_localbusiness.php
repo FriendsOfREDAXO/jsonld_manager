@@ -473,6 +473,31 @@ if ($lbAction === 'save' && $branchId > 0) {
     $imagesRaw = rex_post('lb_images', 'string', '');
     $images = implode(',', array_filter(array_map('trim', explode(',', $imagesRaw))));
     $knowsLanguage = jsonld_manager_parse_list_input(rex_post('lb_knows_language', 'string', ''));
+    $contactPointAreaServedList = jsonld_manager_parse_list_input(rex_post('lb_contactpoint_area_served', 'string', ''));
+    $contactPointLanguageList = jsonld_manager_parse_list_input(rex_post('lb_contactpoint_language', 'string', ''));
+    $contactPointAreaServed = '';
+    $contactPointLanguage = '';
+    if (count($contactPointAreaServedList) === 1) {
+        $contactPointAreaServed = $contactPointAreaServedList[0];
+    } elseif (count($contactPointAreaServedList) > 1) {
+        $contactPointAreaServed = $contactPointAreaServedList;
+    }
+
+    if (count($contactPointLanguageList) === 1) {
+        $contactPointLanguage = $contactPointLanguageList[0];
+    } elseif (count($contactPointLanguageList) > 1) {
+        $contactPointLanguage = $contactPointLanguageList;
+    }
+    $contactPoint = [
+        'telephone' => rex_post('lb_contactpoint_phone', 'string', ''),
+        'email' => rex_post('lb_contactpoint_email', 'string', ''),
+        'contactType' => rex_post('lb_contactpoint_type', 'string', ''),
+        'availableLanguage' => $contactPointLanguage,
+        'areaServed' => $contactPointAreaServed,
+    ];
+    $contactPoint = array_filter($contactPoint, static function ($value) {
+        return trim((string) $value) !== '';
+    });
 
     // Bestehende Konfiguration der Standort laden
     $branchSql = rex_sql::factory();
@@ -541,7 +566,7 @@ if ($lbAction === 'save' && $branchId > 0) {
         'businessType' => rex_post('lb_type', 'string', ''),
         'images' => $images,
         'priceRange' => rex_post('lb_price_range', 'string', ''),
-        'telephone' => rex_post('lb_phone_sync', 'string', rex_post('lb_phone', 'string', '')),
+        'telephone' => rex_post('lb_contactpoint_phone', 'string', ''),
         'slogan' => rex_post('lb_slogan', 'string', ''),
         'streetAddress' => rex_post('lb_street_address', 'string', ''),
         'postalCode' => rex_post('lb_postal_code', 'string', ''),
@@ -552,6 +577,7 @@ if ($lbAction === 'save' && $branchId > 0) {
         'paymentAccepted' => rex_post('lb_payment_accepted', 'string', ''),
         'currenciesAccepted' => rex_post('lb_currencies_accepted', 'string', ''),
         'knowsLanguage' => $knowsLanguage,
+        'contactPoint' => $contactPoint,
         'geo' => [
             'latitude' => $latitude,
             'longitude' => $longitude
@@ -707,6 +733,13 @@ function updateJSON() {
     const areaServed = document.getElementById("lb_area_served") ? document.getElementById("lb_area_served").value : "";
     const paymentAccepted = document.getElementById("lb_payment_accepted") ? document.getElementById("lb_payment_accepted").value : "";
     const currenciesAccepted = document.getElementById("lb_currencies_accepted") ? document.getElementById("lb_currencies_accepted").value : "";
+    const contactPointPhone = document.getElementById("lb_contactpoint_phone") ? document.getElementById("lb_contactpoint_phone").value : "";
+    const contactPointEmail = document.getElementById("lb_contactpoint_email") ? document.getElementById("lb_contactpoint_email").value : "";
+    const contactPointType = document.getElementById("lb_contactpoint_type") ? document.getElementById("lb_contactpoint_type").value : "";
+    const contactPointLanguage = document.getElementById("lb_contactpoint_language") ? document.getElementById("lb_contactpoint_language").value : "";
+    const contactPointAreaServed = document.getElementById("lb_contactpoint_area_served") ? document.getElementById("lb_contactpoint_area_served").value : "";
+    const contactPointLanguageList = contactPointLanguage.split(/[\n,]+/).map(function(v) { return v.trim(); }).filter(Boolean);
+    const contactPointAreaServedList = contactPointAreaServed.split(/[\n,]+/).map(function(v) { return v.trim(); }).filter(Boolean);
     
     // Adressfelder für LocalBusiness
     const streetAddress = document.getElementById("lb_street_address") ? document.getElementById("lb_street_address").value : "";
@@ -738,8 +771,8 @@ function updateJSON() {
         }
     }
     
-    // Telefon und Öffnungszeiten
-    const phone = document.getElementById("lb_phone").value;
+    // Telefonnummer wird zentral im ContactPoint-Feld gepflegt
+    const phone = contactPointPhone;
     
     if (phone) jsonld.telephone = phone;
     if (slogan) jsonld.slogan = slogan;
@@ -747,6 +780,25 @@ function updateJSON() {
     if (areaServed) jsonld.areaServed = areaServed;
     if (paymentAccepted) jsonld.paymentAccepted = paymentAccepted;
     if (currenciesAccepted) jsonld.currenciesAccepted = currenciesAccepted;
+
+    if (contactPointPhone || contactPointEmail || contactPointType || contactPointLanguage || contactPointAreaServed) {
+        jsonld.contactPoint = {
+            "@type": "ContactPoint"
+        };
+        if (contactPointPhone) jsonld.contactPoint.telephone = contactPointPhone;
+        if (contactPointEmail) jsonld.contactPoint.email = contactPointEmail;
+        if (contactPointType) jsonld.contactPoint.contactType = contactPointType;
+        if (contactPointLanguageList.length === 1) {
+            jsonld.contactPoint.availableLanguage = contactPointLanguageList[0];
+        } else if (contactPointLanguageList.length > 1) {
+            jsonld.contactPoint.availableLanguage = contactPointLanguageList;
+        }
+        if (contactPointAreaServedList.length === 1) {
+            jsonld.contactPoint.areaServed = contactPointAreaServedList[0];
+        } else if (contactPointAreaServedList.length > 1) {
+            jsonld.contactPoint.areaServed = contactPointAreaServedList;
+        }
+    }
 
     // Adresse hinzufügen (wenn mindestens ein Adressfeld ausgefüllt ist)
     if (streetAddress || postalCode || addressLocality || addressCountry) {
@@ -766,7 +818,6 @@ function updateJSON() {
     
     // Organization Reference hinzufügen
     jsonld.publisher = {
-        "@type": "Organization",
         "@id": baseUrl + "#organization"
     };
     
@@ -877,10 +928,8 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         });
         form.addEventListener("submit", function() {
-            const phone = document.getElementById("lb_phone");
             const coordinates = document.getElementById("lb_coordinates");
 
-            setHiddenField(form, "lb_phone_sync", phone ? phone.value : "");
             setHiddenField(form, "lb_coordinates_sync", coordinates ? coordinates.value : "");
             setHiddenField(form, "lb_opening_hours_json", JSON.stringify(collectOpeningHoursRows()));
         });
@@ -984,6 +1033,13 @@ echo '<div class="row">
                         <option value="$$$$"' . (($localBusinessConfig['priceRange'] ?? '') === '$$$$' ? ' selected' : '') . '>$$$$ (Sehr teuer)</option>
                     </select>
                 </div>
+
+                <div class="form-group">
+                    <label for="lb_slogan">Slogan:</label>
+                    <input type="text" name="lb_slogan" id="lb_slogan" class="form-control"
+                           value="' . htmlspecialchars($localBusinessConfig['slogan'] ?? '') . '"
+                           placeholder="Ihr Lieblingsrestaurant in Sulzemoos">
+                </div>
                 </div>
             </div>
 
@@ -1007,28 +1063,6 @@ echo '          <div class="form-group">
                             Mehrfachauswahl erlaubt. Ausgabe in JSON-LD als <code>image</code>-Array. Empfehlung: JPG oder WEBP im Querformat (ideal 1200×900, mindestens 800×600).
                         </small>
                     </div>
-                </div>
-            </div>
-            
-            <div class="panel panel-primary">
-                <header class="panel-heading">
-                    <h1 class="panel-title">Kontakt & Zeiten</h1>
-                </header>
-                <div class="panel-body">
-                
-                <div class="form-group">
-                    <label for="lb_phone">Telefon:</label>
-                    <input type="tel" name="lb_phone" id="lb_phone" class="form-control" 
-                           value="' . htmlspecialchars($localBusinessConfig['telephone'] ?? '') . '" 
-                           placeholder="+49 123 456789">
-                </div>
-
-                <div class="form-group">
-                    <label for="lb_slogan">Slogan (optional):</label>
-                    <input type="text" name="lb_slogan" id="lb_slogan" class="form-control"
-                           value="' . htmlspecialchars($localBusinessConfig['slogan'] ?? '') . '"
-                           placeholder="Ihr Lieblingsrestaurant in Sulzemoos">
-                </div>
                 </div>
             </div>
             
@@ -1091,10 +1125,68 @@ echo '          <div class="form-group">
                 </div>
 
                 <div class="form-group">
-                    <label for="lb_area_served">Servicegebiet (areaServed):</label>
+                    <label for="lb_area_served">Servicegebiet des Standorts (LocalBusiness areaServed):</label>
                     <input type="text" name="lb_area_served" id="lb_area_served" class="form-control"
                            value="' . htmlspecialchars($localBusinessConfig['areaServed'] ?? '') . '"
                            placeholder="München, Dachau, Fürstenfeldbruck">
+                    <small class="help-block" style="color: #999;">Beschreibt das Servicegebiet des Standorts selbst (nicht der Kontaktstelle).</small>
+                </div>
+                </div>
+            </div>
+
+            <div class="panel panel-primary">
+                <header class="panel-heading">
+                    <h1 class="panel-title">Öffnungszeiten-Spezifikation</h1>
+                </header>
+                <div class="panel-body">
+                    ' . $openingHoursForm . '
+                </div>
+            </div>
+
+            <div class="panel panel-primary">
+                <header class="panel-heading">
+                    <h1 class="panel-title">ContactPoint</h1>
+                </header>
+                <div class="panel-body">
+                <div class="form-group">
+                    <label for="lb_contactpoint_phone">Telefon:</label>
+                    <input type="tel" name="lb_contactpoint_phone" id="lb_contactpoint_phone" class="form-control"
+                           value="' . htmlspecialchars($localBusinessConfig['contactPoint']['telephone'] ?? ($localBusinessConfig['telephone'] ?? '')) . '"
+                           placeholder="+43 (0) 1 330 46 59">
+                </div>
+
+                <div class="form-group">
+                    <label for="lb_contactpoint_email">E-Mail:</label>
+                    <input type="email" name="lb_contactpoint_email" id="lb_contactpoint_email" class="form-control"
+                           value="' . htmlspecialchars($localBusinessConfig['contactPoint']['email'] ?? '') . '"
+                           placeholder="wien@myshop.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="lb_contactpoint_type">Kontakt-Art:</label>
+                    <select name="lb_contactpoint_type" id="lb_contactpoint_type" class="form-control selectpicker" data-live-search="true" data-size="8">';
+$contactPointType = $localBusinessConfig['contactPoint']['contactType'] ?? '';
+echo '              <option value=""' . ($contactPointType === '' ? ' selected' : '') . '>Bitte wählen</option>
+                        <option value="customer service"' . ($contactPointType === 'customer service' ? ' selected' : '') . '>Kundenservice</option>
+                        <option value="sales"' . ($contactPointType === 'sales' ? ' selected' : '') . '>Vertrieb</option>
+                        <option value="support"' . ($contactPointType === 'support' ? ' selected' : '') . '>Support</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="lb_contactpoint_language">Sprache (availableLanguage):</label>
+                    <input type="text" name="lb_contactpoint_language" id="lb_contactpoint_language" class="form-control"
+                           value="' . htmlspecialchars(is_array($localBusinessConfig['contactPoint']['availableLanguage'] ?? null) ? implode(', ', $localBusinessConfig['contactPoint']['availableLanguage']) : ($localBusinessConfig['contactPoint']['availableLanguage'] ?? '')) . '"
+                           placeholder="de, en">
+                    <small class="help-block" style="color: #999;">Mehrere Werte kommagetrennt oder je Zeile, z. B. de, en.</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="lb_contactpoint_area_served">Servicegebiet der Kontaktstelle (areaServed):</label>
+                    <input type="text" name="lb_contactpoint_area_served" id="lb_contactpoint_area_served" class="form-control"
+                           value="' . htmlspecialchars(is_array($localBusinessConfig['contactPoint']['areaServed'] ?? null) ? implode(', ', $localBusinessConfig['contactPoint']['areaServed']) : ($localBusinessConfig['contactPoint']['areaServed'] ?? '')) . '"
+                           placeholder="Bayern, München, DE, AT">
+                    <small class="help-block" style="color: #999;">Optional separat vom Standort-Servicegebiet pflegen. Mehrere Werte kommagetrennt oder je Zeile.</small>
                 </div>
                 </div>
             </div>
@@ -1128,15 +1220,6 @@ echo '          <div class="form-group">
                 </div>
             </div>
 
-            <div class="panel panel-primary">
-                <header class="panel-heading">
-                    <h1 class="panel-title">Öffnungszeiten-Spezifikation</h1>
-                </header>
-                <div class="panel-body">
-                    ' . $openingHoursForm . '
-                </div>
-            </div>
-            
         </form>
     </div>
     

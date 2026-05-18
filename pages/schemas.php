@@ -251,7 +251,7 @@ echo '      <input type="hidden" name="organization_action" value="save">';
 echo '      <input type="hidden" name="domain_id" value="' . $activeDomainId . '">';
 
 echo '      <div class="panel panel-primary">';
-echo '        <header class="panel-heading"><h1 class="panel-title">Organization Konfiguration</h1></header>';
+echo '        <header class="panel-heading"><h1 class="panel-title">Organisation</h1></header>';
 echo '        <div class="panel-body">';
 
 echo '          <div class="form-group">';
@@ -281,7 +281,12 @@ echo '            <textarea name="org_same_as" id="org_same_as" class="form-cont
 echo '            <small class="help-block">Eine URL pro Zeile oder kommagetrennt.</small>';
 echo '          </div>';
 
-echo '          <hr>';
+echo '        </div>';
+echo '      </div>';
+
+echo '      <div class="panel panel-primary">';
+echo '        <header class="panel-heading"><h1 class="panel-title">Kontaktstelle (ContactPoint)</h1></header>';
+echo '        <div class="panel-body">';
 
 echo '          <div class="form-group">';
 echo '            <label for="org_phone">Telefon:</label>';
@@ -304,7 +309,12 @@ echo '              <option value="support"' . ($contactType === 'support' ? ' s
 echo '            </select>';
 echo '          </div>';
 
-echo '          <hr>';
+echo '        </div>';
+echo '      </div>';
+
+echo '      <div class="panel panel-primary">';
+echo '        <header class="panel-heading"><h1 class="panel-title">Adresse</h1></header>';
+echo '        <div class="panel-body">';
 
 echo '          <div class="form-group">';
 echo '            <label for="org_street">Straße & Hausnummer:</label>';

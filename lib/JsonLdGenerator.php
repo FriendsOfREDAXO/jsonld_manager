@@ -16,6 +16,295 @@ use Url\Url;
 class JsonLdGenerator
 {
     /**
+     * Baut die komplette JSON-LD-Ausgabe fuer einen Artikel.
+     * Diese Methode ist die gemeinsame Quelle fuer Backend-Vorschau, AJAX und Frontend.
+     *
+     * @param int $articleId
+     * @param int|array|null $branchIds Override fuer LocalBusiness-Branch-IDs; null nutzt gespeicherte Auswahl/Fallback.
+     * @param bool $isDebugMode
+     * @param int|null $clangId
+     * @return array{disabled: bool, custom: bool, items: array, payload: ?array, json: string, branch_ids: array, meta: array, error: ?string}
+     */
+    public static function getArticleOutput($articleId, $branchIds = null, bool $isDebugMode = false, $clangId = null): array
+    {
+        $articleId = (int) $articleId;
+        $effectiveClangId = self::normalizeClangId($clangId);
+        $resolvedBranchIds = self::resolveBranchIdsForArticle($articleId, $effectiveClangId, $branchIds);
+
+        // BranchConfigs initialisieren, damit branch_names für Debug-Overlay bereitstehen
+        $branchConfigs = self::loadBranchConfigs($resolvedBranchIds, $effectiveClangId, [], $isDebugMode);
+
+        $output = [
+            'disabled' => false,
+            'custom' => false,
+            'items' => [],
+            'payload' => null,
+            'json' => '',
+            'branch_ids' => $resolvedBranchIds,
+            'meta' => self::buildDebugMeta($articleId, $effectiveClangId, $resolvedBranchIds, [], null, 'generated'),
+            'error' => null,
+        ];
+
+        if ($articleId <= 0 || !\rex_article::get($articleId, $effectiveClangId)) {
+            return $output;
+        }
+
+        if (self::isArticleJsonDisabled($articleId, $effectiveClangId)) {
+            $output['disabled'] = true;
+            return $output;
+        }
+
+        $customJson = trim(self::getCustomJson($articleId, $effectiveClangId));
+        if ($customJson !== '') {
+            $decoded = json_decode($customJson, true);
+            if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                $output['custom'] = true;
+                $output['error'] = 'Custom JSON-LD ist ungueltig: ' . json_last_error_msg();
+                return $output;
+            }
+
+            try {
+                $payload = self::pruneEmptyValues($decoded);
+                $output['custom'] = true;
+                $output['payload'] = $payload;
+                $output['json'] = self::encodePayload($payload);
+                $output['meta'] = self::buildDebugMeta($articleId, $effectiveClangId, $resolvedBranchIds, [], $payload, 'custom');
+            } catch (\Exception $e) {
+                $output['custom'] = true;
+                $output['error'] = $e->getMessage();
+            }
+
+            return $output;
+        }
+
+        $items = self::generateForArticle($articleId, $resolvedBranchIds, $isDebugMode, $effectiveClangId);
+        if (empty($items)) {
+            return $output;
+        }
+
+
+        try {
+            $payload = self::buildPayload($items);
+            $output['items'] = $items;
+            $output['payload'] = $payload;
+            $output['json'] = self::encodePayload($payload);
+            // branch_names für Debug-Tabs sammeln
+            $branchNames = [];
+            if (!empty($branchConfigs)) {
+                foreach ($branchConfigs as $branchConfigEntry) {
+                    $branchNames[$branchConfigEntry['branch_id']] = $branchConfigEntry['config']['name'] ?? '';
+                }
+            }
+            $meta = self::buildDebugMeta($articleId, $effectiveClangId, $resolvedBranchIds, $items, $payload, 'generated');
+            if (!empty($branchNames)) {
+                $meta['branch_names'] = $branchNames;
+            }
+            $output['meta'] = $meta;
+        } catch (\Exception $e) {
+            $output['error'] = $e->getMessage();
+        }
+
+        return $output;
+    }
+
+    /**
+     * Rendert die Artikel-Ausgabe als application/ld+json Script-Tag.
+     *
+     * @param int $articleId
+     * @param int|array|null $branchIds
+     * @param bool $includeDebugOverlay
+     * @param int|null $clangId
+     */
+    public static function renderArticleScript($articleId, $branchIds = null, bool $includeDebugOverlay = false, $clangId = null): string
+    {
+        $output = self::getArticleOutput($articleId, $branchIds, $includeDebugOverlay, $clangId);
+
+
+        if ($output['disabled'] || $output['json'] === '') {
+            if ($output['error'] && \rex::isDebugMode()) {
+                return '<!-- JSON-LD Error: ' . htmlspecialchars($output['error'], ENT_QUOTES) . ' -->' . "\n";
+            }
+            return '';
+        }
+
+        $html = '<script type="application/ld+json">' . "\n" . $output['json'] . "\n" . '</script>' . "\n";
+
+        if ($includeDebugOverlay && function_exists('jsonld_render_debug_overlay_script')) {
+            $html .= jsonld_render_debug_overlay_script($output['payload'], $output['meta']);
+        }
+
+        return $html;
+    }
+
+    /**
+     * Einheitliches JSON-LD Payload bauen.
+     */
+    public static function buildPayload(array $jsonLdItems): array
+    {
+        if (count($jsonLdItems) === 1) {
+            return self::pruneEmptyValues($jsonLdItems[0]);
+        }
+
+        return self::pruneEmptyValues([
+            '@context' => 'https://schema.org',
+            '@graph' => array_values($jsonLdItems),
+        ]);
+    }
+
+    /**
+     * JSON-LD Payload einheitlich formatieren.
+     */
+    public static function encodePayload(array $payload): string
+    {
+        $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false || json_last_error() !== JSON_ERROR_NONE) {
+            throw new \RuntimeException('JSON-LD Encoding Error: ' . json_last_error_msg());
+        }
+
+        return $json;
+    }
+
+    /**
+     * Entfernt rekursiv leere Werte aus JSON-LD Daten.
+     *
+     * @param mixed $value
+     * @return mixed
+     */
+    public static function pruneEmptyValues($value)
+    {
+        if (is_array($value)) {
+            $clean = [];
+            foreach ($value as $key => $item) {
+                $pruned = self::pruneEmptyValues($item);
+                $isEmptyString = is_string($pruned) && trim($pruned) === '';
+                $isEmptyArray = is_array($pruned) && count($pruned) === 0;
+                if ($pruned === null || $isEmptyString || $isEmptyArray) {
+                    continue;
+                }
+                $clean[$key] = $pruned;
+            }
+
+            return $clean;
+        }
+
+        if (is_string($value)) {
+            return trim($value);
+        }
+
+        return $value;
+    }
+
+    public static function getArticleBranchKey($articleId, $clangId = null): string
+    {
+        $clangId = self::normalizeClangId($clangId);
+        if (class_exists(__NAMESPACE__ . '\\DomainConfig') && DomainConfig::isMultiDomain()) {
+            return 'article_branch_' . (int) $articleId . '_clang_' . $clangId . '_domain_' . DomainConfig::getActiveDomainId();
+        }
+
+        return 'article_branch_' . (int) $articleId . '_clang_' . $clangId;
+    }
+
+    public static function getDisableJsonKey($articleId, $clangId = null): string
+    {
+        $clangId = self::normalizeClangId($clangId);
+        if (class_exists(__NAMESPACE__ . '\\DomainConfig') && DomainConfig::isMultiDomain()) {
+            return 'disable_json_' . (int) $articleId . '_clang_' . $clangId . '_domain_' . DomainConfig::getActiveDomainId();
+        }
+
+        return 'disable_json_' . (int) $articleId . '_clang_' . $clangId;
+    }
+
+    public static function getCustomJsonKey($articleId, $clangId = null): string
+    {
+        $clangId = self::normalizeClangId($clangId);
+        if (class_exists(__NAMESPACE__ . '\\DomainConfig') && DomainConfig::isMultiDomain()) {
+            return 'custom_json_' . (int) $articleId . '_clang_' . $clangId . '_domain_' . DomainConfig::getActiveDomainId();
+        }
+
+        return 'custom_json_' . (int) $articleId . '_clang_' . $clangId;
+    }
+
+    public static function isArticleJsonDisabled($articleId, $clangId = null): bool
+    {
+        return (bool) \rex_config::get('jsonld_manager', self::getDisableJsonKey($articleId, $clangId), false);
+    }
+
+    public static function getCustomJson($articleId, $clangId = null): string
+    {
+        return (string) \rex_config::get('jsonld_manager', self::getCustomJsonKey($articleId, $clangId), '');
+    }
+
+    public static function hasCustomJson($articleId, $clangId = null): bool
+    {
+        return trim(self::getCustomJson($articleId, $clangId)) !== '';
+    }
+
+    public static function getArticleBranchIds($articleId, $clangId = null): array
+    {
+        $clangId = self::normalizeClangId($clangId);
+        $branchIds = self::normalizeBranchIds(\rex_config::get('jsonld_manager', self::getArticleBranchKey($articleId, $clangId), []));
+        if (!empty($branchIds)) {
+            return $branchIds;
+        }
+
+        try {
+            $sql = \rex_sql::factory();
+            $clangCandidates = array_values(array_unique(array_filter([
+                (int) $clangId,
+                (int) \rex_clang::getStartId(),
+            ], static function ($id) {
+                return $id > 0;
+            })));
+
+            foreach ($clangCandidates as $candidateClangId) {
+                $sql->setQuery(
+                    'SELECT config FROM ' . \rex::getTable('jsonld_schemas') . ' WHERE article_id = ? AND clang_id = ? AND schema_type = "WebPage" AND active = 1 LIMIT 1',
+                    [(int) $articleId, (int) $candidateClangId]
+                );
+
+                if ($sql->getRows() === 0) {
+                    continue;
+                }
+
+                $config = json_decode((string) $sql->getValue('config'), true) ?: [];
+                $schemaBranchIds = $config['localbusiness_branch_ids'] ?? [];
+                if (empty($schemaBranchIds) && !empty($config['localbusiness_branch_id'])) {
+                    $schemaBranchIds = [$config['localbusiness_branch_id']];
+                }
+
+                $schemaBranchIds = self::normalizeBranchIds($schemaBranchIds);
+                if (!empty($schemaBranchIds)) {
+                    return $schemaBranchIds;
+                }
+            }
+        } catch (\Exception $e) {
+            // Fallback unten greift
+        }
+
+        return [];
+    }
+
+    /**
+     * Ermittelt die effektiven Branch-IDs fuer Backend und Frontend identisch.
+     *
+     * @param int|array|null $branchIds
+     */
+    public static function resolveBranchIdsForArticle($articleId, $clangId = null, $branchIds = null): array
+    {
+        $clangId = self::normalizeClangId($clangId);
+        if ($branchIds !== null) {
+            return self::normalizeBranchIds($branchIds);
+        }
+
+        $storedBranchIds = self::getArticleBranchIds((int) $articleId, $clangId);
+        if (!empty($storedBranchIds)) {
+            return $storedBranchIds;
+        }
+
+        return self::getDefaultBranchIds($clangId);
+    }
+
+    /**
      * JSON-LD für Artikel generieren (zentrale Funktion für Backend + Frontend)
      * 
      * @param int $articleId
@@ -28,7 +317,7 @@ class JsonLdGenerator
         if (!$articleId) return [];
         
         $jsonLdItems = [];
-        $effectiveClangId = $clangId ? (int) $clangId : \rex_clang::getCurrentId();
+        $effectiveClangId = self::normalizeClangId($clangId);
         $currentArticle = \rex_article::get($articleId, $effectiveClangId);
         if (!$currentArticle) return [];
         
@@ -84,17 +373,40 @@ class JsonLdGenerator
             if (!empty($organizationConfig['url'])) {
                 $organizationSchema['url'] = $organizationConfig['url'];
             }
+
+            if (!empty($organizationConfig['logo'])) {
+                $organizationSchema['logo'] = $organizationConfig['logo'];
+            }
             
             if (!empty($organizationConfig['description'])) {
                 $organizationSchema['description'] = $organizationConfig['description'];
             }
-            
-            if (!empty($organizationConfig['address'])) {
-                $organizationSchema['address'] = $organizationConfig['address'];
+
+            if (!empty($organizationConfig['sameAs'])) {
+                $sameAs = self::normalizeStringList($organizationConfig['sameAs']);
+                if (!empty($sameAs)) {
+                    $organizationSchema['sameAs'] = $sameAs;
+                }
             }
             
-            if (!empty($organizationConfig['contactPoint'])) {
-                $organizationSchema['contactPoint'] = $organizationConfig['contactPoint'];
+            if (!empty($organizationConfig['address']) && is_array($organizationConfig['address'])) {
+                $address = self::pruneEmptyValues(array_merge(
+                    ['@type' => 'PostalAddress'],
+                    $organizationConfig['address']
+                ));
+                if (count($address) > 1) {
+                    $organizationSchema['address'] = $address;
+                }
+            }
+            
+            if (!empty($organizationConfig['contactPoint']) && is_array($organizationConfig['contactPoint'])) {
+                $contactPoint = self::pruneEmptyValues(array_merge(
+                    ['@type' => 'ContactPoint'],
+                    $organizationConfig['contactPoint']
+                ));
+                if (count($contactPoint) > 1) {
+                    $organizationSchema['contactPoint'] = $contactPoint;
+                }
             }
             
             $jsonLdItems[] = $organizationSchema;
@@ -131,7 +443,6 @@ class JsonLdGenerator
             // Verbindung zur Organization
             if (!empty($organizationConfig['name'])) {
                 $websiteSchema['publisher'] = [
-                    '@type' => 'Organization',
                     '@id' => rtrim(\rex::getServer(), '/') . '/#organization'
                 ];
             }
@@ -233,7 +544,6 @@ class JsonLdGenerator
             // about (Verbindung zur Organization)
             if ($articleConfig['include_about'] && !empty($organizationConfig['name'])) {
                 $webPageSchema['about'] = [
-                    '@type' => 'Organization',
                     '@id' => rtrim(\rex::getServer(), '/') . '/#organization'
                 ];
             }
@@ -402,10 +712,17 @@ class JsonLdGenerator
         return;
     }
 
-    private static function normalizeBranchIds($branchId): array
+    public static function normalizeBranchIds($branchId): array
     {
         if (is_array($branchId)) {
             $branchIds = $branchId;
+        } elseif (is_string($branchId) && $branchId !== '') {
+            $decoded = json_decode($branchId, true);
+            if (is_array($decoded)) {
+                $branchIds = $decoded;
+            } else {
+                $branchIds = explode(',', $branchId);
+            }
         } elseif ($branchId) {
             $branchIds = [$branchId];
         } else {
@@ -416,6 +733,139 @@ class JsonLdGenerator
         return array_values(array_unique(array_filter($branchIds, static function ($id) {
             return $id > 0;
         })));
+    }
+
+    private static function normalizeStringList($value): array
+    {
+        if (is_array($value)) {
+            $items = $value;
+        } elseif (is_string($value) && $value !== '') {
+            $items = preg_split('/[\r\n,]+/', $value) ?: [];
+        } else {
+            $items = [];
+        }
+
+        $items = array_map(static function ($item) {
+            return trim((string) $item);
+        }, $items);
+
+        return array_values(array_unique(array_filter($items, static function ($item) {
+            return $item !== '';
+        })));
+    }
+
+    private static function normalizeClangId($clangId = null): int
+    {
+        $clangId = $clangId !== null ? (int) $clangId : 0;
+        return $clangId > 0 ? $clangId : (int) \rex_clang::getCurrentId();
+    }
+
+    private static function getDefaultBranchIds(int $clangId): array
+    {
+        try {
+            [$domainWhere, $domainParams] = self::getBranchDomainCondition();
+            $sql = \rex_sql::factory();
+
+            $sql->setQuery(
+                'SELECT id FROM ' . \rex::getTable('jsonld_localbusiness_branches') . '
+                 WHERE clang_id = ?' . $domainWhere . '
+                 ORDER BY is_main_branch DESC, sort_order ASC, id ASC
+                 LIMIT 1',
+                array_merge([$clangId], $domainParams)
+            );
+
+            if ($sql->getRows() > 0) {
+                return [(int) $sql->getValue('id')];
+            }
+        } catch (\Exception $e) {
+            // Keine Branch verwenden
+        }
+
+        return [];
+    }
+
+    private static function getBranchDomainCondition(): array
+    {
+        if (
+            class_exists(__NAMESPACE__ . '\\DomainConfig')
+            && DomainConfig::isMultiDomain()
+            && self::tableHasColumn(\rex::getTable('jsonld_localbusiness_branches'), 'domain_id')
+        ) {
+            return [' AND (domain_id = ? OR domain_id IS NULL)', [(int) DomainConfig::getActiveDomainId()]];
+        }
+
+        return ['', []];
+    }
+
+    private static function tableHasColumn(string $table, string $column): bool
+    {
+        static $cache = [];
+        $cacheKey = $table . '.' . $column;
+        if (array_key_exists($cacheKey, $cache)) {
+            return $cache[$cacheKey];
+        }
+
+        try {
+            $sql = \rex_sql::factory();
+            $sql->setQuery('SHOW COLUMNS FROM ' . $table . ' LIKE ?', [$column]);
+            $cache[$cacheKey] = $sql->getRows() > 0;
+        } catch (\Exception $e) {
+            $cache[$cacheKey] = false;
+        }
+
+        return $cache[$cacheKey];
+    }
+
+    private static function buildDebugMeta(int $articleId, int $clangId, array $branchIds, array $items, ?array $payload, string $source): array
+    {
+        $types = self::extractTypes($items, $payload);
+        $meta = [
+            'article_id' => $articleId,
+            'clang_id' => $clangId,
+            'branch_ids' => $branchIds,
+            'branch_id' => $branchIds[0] ?? null,
+            'types' => array_values(array_unique($types)),
+            'source' => $source,
+        ];
+
+        if (class_exists(__NAMESPACE__ . '\\DomainConfig') && DomainConfig::isMultiDomain()) {
+            $activeDomain = DomainConfig::getActiveDomain();
+            if ($activeDomain) {
+                $meta['domain_id'] = (int) $activeDomain['id'];
+                $meta['domain_name'] = (string) $activeDomain['domain'];
+            }
+        }
+
+        return $meta;
+    }
+
+    private static function extractTypes(array $items, ?array $payload): array
+    {
+        $types = [];
+        foreach ($items as $item) {
+            if (is_array($item) && isset($item['@type'])) {
+                $types[] = (string) $item['@type'];
+            }
+        }
+
+        if ($payload !== null) {
+            $payloadItems = [];
+            if (isset($payload['@graph']) && is_array($payload['@graph'])) {
+                $payloadItems = $payload['@graph'];
+            } elseif (isset($payload['@type'])) {
+                $payloadItems = [$payload];
+            } elseif (array_is_list($payload)) {
+                $payloadItems = $payload;
+            }
+
+            foreach ($payloadItems as $item) {
+                if (is_array($item) && isset($item['@type'])) {
+                    $types[] = (string) $item['@type'];
+                }
+            }
+        }
+
+        return $types;
     }
 
     private static function loadBranchConfigs(array $branchIds, int $clangId, array $baseConfig, bool $isDebugMode): array
@@ -507,12 +957,30 @@ class JsonLdGenerator
             $localBusinessSchema['knowsLanguage'] = $localBusinessConfig['knowsLanguage'];
         }
 
+        if (!empty($localBusinessConfig['contactPoint']) && is_array($localBusinessConfig['contactPoint'])) {
+            $contactPoint = self::pruneEmptyValues(array_merge(
+                ['@type' => 'ContactPoint'],
+                $localBusinessConfig['contactPoint']
+            ));
+
+            if (count($contactPoint) > 1) {
+                $localBusinessSchema['contactPoint'] = $contactPoint;
+            }
+        }
+
         if (!empty($localBusinessConfig['geo']) && is_array($localBusinessConfig['geo'])) {
             $geo = $localBusinessConfig['geo'];
             $latitude = trim($geo['latitude'] ?? '');
             $longitude = trim($geo['longitude'] ?? '');
             if ($latitude !== '' && $longitude !== '' && $latitude !== '0' && $longitude !== '0') {
-                $localBusinessSchema['geo'] = $geo;
+                $localBusinessSchema['geo'] = array_merge(
+                    ['@type' => 'GeoCoordinates'],
+                    $geo,
+                    [
+                        'latitude' => $latitude,
+                        'longitude' => $longitude,
+                    ]
+                );
             }
         }
 

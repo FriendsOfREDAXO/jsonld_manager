@@ -304,8 +304,12 @@ echo '            <label>Sprache:</label>';
 echo '            <input type="text" class="form-control" value="' . htmlspecialchars($autoLanguageCode) . '" readonly>';
 echo '            <small class="help-block" style="color: #999;">Wird automatisch aus der aktuellen REDAXO-Sprache gesetzt.</small>';
 echo '          </div>';
+echo '        </div>';
+echo '      </div>';
 
-echo '          <hr style="border-color:#3d4a5a;">';
+echo '      <div class="panel panel-primary">';
+echo '        <header class="panel-heading"><h1 class="panel-title">Suchfunktion</h1></header>';
+echo '        <div class="panel-body">';
 
 echo '          <div class="form-group">';
 echo '            <label>';
@@ -316,7 +320,7 @@ echo '          </div>';
 echo '          <div class="form-group">';
 echo '            <label for="search_url">Such-URL:</label>';
 echo '            <input type="text" name="search_url" id="search_url" class="form-control" value="' . htmlspecialchars($websiteConfig['potentialAction']['target'] ?? '') . '" placeholder="https://example.com/search?q={search_term_string}">';
-echo '            <small id="search_url_help" class="help-block" style="color: #999;">Verwende {search_term_string} als Platzhalter.</small>';
+echo '            <small id="search_url_help" class="help-block" style="color: #999;">Verwende {search_term_string} als Platzhalter. Ohne aktivierte Suchfunktion wird kein SearchAction ausgegeben.</small>';
 echo '          </div>';
 
 echo '        </div>';

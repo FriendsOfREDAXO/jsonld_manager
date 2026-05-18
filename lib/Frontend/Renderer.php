@@ -38,90 +38,55 @@ class Renderer
             if (!$article) {
                 return '';
             }
-            
+
             $addon = \rex_addon::get('jsonld_manager');
-            
-            // Debug-Info sammeln
             $isDebugMode = self::getSetting($addon, 'debug_mode', false);
-            if ($isDebugMode) {
-                self::addDebugInfo('render_start', 'JSON-LD Rendering gestartet', [
-                    'article_id' => $article->getId(),
-                    'clang_id' => $article->getClangId(),
-                    'schema_type' => $schemaType,
-                    'cache_key' => 'pending',
-                    'additional_data' => $additionalData
-                ]);
-            }
+            $branchIds = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::resolveBranchIdsForArticle(
+                (int) $article->getId(),
+                (int) $article->getClangId()
+            );
 
-            // Branch-ID für diesen Artikel laden
-            $useBranchIds = self::resolveBranchIdsForArticle($article->getId(), (int) $article->getClangId());
-            $cacheKey = md5($article->getId() . '_' . $article->getClangId() . '_' . ($schemaType ?: 'auto') . '_' . serialize($useBranchIds) . '_' . serialize($additionalData));
+            $cacheKey = md5($article->getId() . '_' . $article->getClangId() . '_' . ($schemaType ?: 'auto') . '_' . serialize($branchIds) . '_' . serialize($additionalData));
 
-            // Cache-Check
             if (isset(self::$cache[$cacheKey])) {
-                if ($isDebugMode) {
-                    self::addDebugInfo('cache_hit', 'Cache-Treffer', [
-                        'cache_key' => $cacheKey,
-                        'branch_ids' => $useBranchIds
-                    ]);
-                }
                 return self::$cache[$cacheKey];
             }
-            
-            // Einheitliche Backend/Frontend-Logik: zentralen Generator verwenden
-            $jsonLdItems = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::generateForArticle($article->getId(), $useBranchIds, $isDebugMode, (int) $article->getClangId());
-            
-            if (empty($jsonLdItems)) {
+
+            $articleOutput = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::getArticleOutput(
+                (int) $article->getId(),
+                null,
+                $isDebugMode,
+                (int) $article->getClangId()
+            );
+
+            if ($articleOutput['disabled'] || $articleOutput['json'] === '') {
+                if ($articleOutput['error'] && $isDebugMode) {
+                    return '<!-- JSON-LD Error: ' . htmlspecialchars($articleOutput['error']) . ' -->';
+                }
                 return '';
             }
-            
-            // JSON-LD formatieren
-            $output = '';
-            $payload = self::normalizeOutputPayload($jsonLdItems);
-            $output = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            
-            // Validierung
-            if (self::getSetting($addon, 'validate_json', true)) {
-                if (json_last_error() !== JSON_ERROR_NONE) {
-                    throw new \Exception('JSON-LD Validierungsfehler: ' . json_last_error_msg());
-                }
-            }
-            
-            // Cache speichern
+
+            $output = $articleOutput['json'];
+
             if (self::getSetting($addon, 'cache_enabled', true)) {
                 self::$cache[$cacheKey] = $output;
                 if (class_exists('\rex_cache')) {
                     \rex_cache::set('jsonld_manager', 'article_'.$article->getId().'_'.$article->getClangId(), $output);
                 }
             }
-            
-            // Debug-Info für erfolgreiche Generierung
+
             if ($isDebugMode) {
                 self::addDebugInfo('render_success', 'JSON-LD erfolgreich generiert', [
-                    'items_count' => count($jsonLdItems ?? []),
+                    'items_count' => count($articleOutput['items'] ?? []),
                     'output_length' => strlen($output),
                     'cached' => self::getSetting($addon, 'cache_enabled', true),
-                    'branch_ids' => $useBranchIds
+                    'branch_ids' => $articleOutput['branch_ids'],
+                    'source' => $articleOutput['custom'] ? 'custom' : 'generated'
                 ]);
-                
-                self::outputConsoleDebug('JSON-LD erfolgreich generiert', [
-                    'JSON-LD Items' => count($jsonLdItems ?? []),
-                    'Output-Länge' => strlen($output) . ' Zeichen',
-                    'Branch-IDs' => implode(', ', $useBranchIds),
-                    'Gecacht' => self::getSetting($addon, 'cache_enabled', true) ? 'Ja' : 'Nein'
-                ]);
-                
-                // JSON-LD Content in Console ausgeben (verkürzt)
-                if (!empty($output)) {
-                    $shortOutput = strlen($output) > 300 ? substr($output, 0, 300) . '...' : $output;
-                    self::outputConsoleDebug('Generated JSON-LD Preview', ['Content' => $shortOutput]);
-                }
             }
-            
+
             return $output;
-            
         } catch (\Exception $e) {
-            // Debug-Info für Fehler
             if (self::getSetting(\rex_addon::get('jsonld_manager'), 'debug_mode', false)) {
                 self::addDebugInfo('render_error', 'JSON-LD Fehler', [
                     'error_message' => $e->getMessage(),
@@ -677,32 +642,7 @@ class Renderer
      */
     private static function resolveBranchIdsForArticle($articleId, $clangId = 1)
     {
-        $selectedBranchIds = [];
-
-        if (function_exists('jsonld_manager_get_article_branch_ids')) {
-            $selectedBranchIds = jsonld_manager_get_article_branch_ids((int) $articleId, (int) $clangId);
-        }
-
-        if (!empty($selectedBranchIds)) {
-            return $selectedBranchIds;
-        }
-
-        try {
-            $sql = \rex_sql::factory();
-            $sql->setQuery('SELECT id FROM ' . \rex::getTable('jsonld_localbusiness_branches') . ' WHERE is_main_branch = 1 AND clang_id = ? LIMIT 1', [(int) $clangId]);
-            if ($sql->getRows() > 0) {
-                return [(int) $sql->getValue('id')];
-            }
-
-            $sql->setQuery('SELECT id FROM ' . \rex::getTable('jsonld_localbusiness_branches') . ' WHERE clang_id = ? ORDER BY sort_order ASC, id ASC LIMIT 1', [(int) $clangId]);
-            if ($sql->getRows() > 0) {
-                return [(int) $sql->getValue('id')];
-            }
-        } catch (\Exception $e) {
-            // Fallback: Keine Branch verwenden
-        }
-
-        return [];
+        return \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::resolveBranchIdsForArticle((int) $articleId, (int) $clangId);
     }
 
     /**
@@ -713,14 +653,7 @@ class Renderer
      */
     private static function normalizeOutputPayload(array $jsonLdItems)
     {
-        if (count($jsonLdItems) === 1) {
-            return $jsonLdItems[0];
-        }
-
-        return [
-            '@context' => 'https://schema.org',
-            '@graph' => array_values($jsonLdItems)
-        ];
+        return \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::buildPayload($jsonLdItems);
     }
 }
 

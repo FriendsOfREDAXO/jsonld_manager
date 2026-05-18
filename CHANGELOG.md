@@ -3,6 +3,15 @@
 
 Dieses Changelog wird ab Version `1.0.0` neu geführt.
 
+## v1.0.0.beta16 (18. Mai 2026)
+
+**Release-Konsolidierung:**
+- Versionsnummer in `package.yml` auf `v1.0.0.beta16` vereinheitlicht.
+- Suffix-Variante `beta16a` wird nicht mehr verwendet.
+
+**Hinweis:**
+- Funktionale Änderungen sind in den Einträgen vom 18. Mai 2026 in `CHANGELOG_chatGPT.md` dokumentiert.
+
 ## 1.0.0-beta.15 (13. Mai 2026)
 
 **Bugfixes / LocalBusiness / Frontend:**
@@ -10,6 +19,11 @@ Dieses Changelog wird ab Version `1.0.0` neu geführt.
 - Frontend-Auflösung der Branch-Zuordnung liest jetzt konsistent die zentrale Artikel-Zuordnung und berücksichtigt zusätzlich die in `jsonld_schemas` gespeicherten `WebPage`-Zuordnungen.
 - Mehrere unvollständig zentralisierte Helper-Funktionen rund um Branch-Keys, Disable-Keys und Artikel-Branch-IDs ergänzt bzw. repariert.
 - Fehler in `article_jsonld.php` durch doppelte Funktionsdefinitionen und beschädigten Funktionsblock behoben.
+- Direkte Namespace-Cache-Löschung aus `update.php` entfernt.
+- Backend-Vorschau, AJAX-Vorschau, Frontend-Ausgabe und Debug-Overlay nutzen jetzt dieselbe zentrale JSON-LD-Ausgabe-Pipeline.
+- LocalBusiness-`geo` wird jetzt immer mit `@type: GeoCoordinates` ausgegeben.
+- Organization-Ausgabe ergänzt `logo`, `sameAs`, `PostalAddress` und `ContactPoint` jetzt auch im Frontend/Debug.
+- Organization-Referenzen in `publisher` und `about` nutzen jetzt nur noch `@id`; `@type: Organization` steht nur im Organization-Haupteintrag.
 
 **Debug-Overlay / UX:**
 - Reihenfolge der JSON-LD-Ausgabe auf `Organization -> WebSite -> WebPage -> LocalBusiness -> BreadcrumbList` umgestellt.
