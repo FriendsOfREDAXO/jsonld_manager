@@ -156,7 +156,16 @@ class JsonLdGenerator
      */
     public static function encodePayload(array $payload): string
     {
-        $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $json = json_encode(
+            $payload,
+            JSON_PRETTY_PRINT
+            | JSON_UNESCAPED_UNICODE
+            | JSON_UNESCAPED_SLASHES
+            | JSON_HEX_TAG
+            | JSON_HEX_AMP
+            | JSON_HEX_APOS
+            | JSON_HEX_QUOT
+        );
         if ($json === false || json_last_error() !== JSON_ERROR_NONE) {
             throw new \RuntimeException('JSON-LD Encoding Error: ' . json_last_error_msg());
         }
@@ -324,8 +333,8 @@ class JsonLdGenerator
         $addon = \rex_addon::get('jsonld_manager');
         
         // Konfigurationen laden
-        $websiteConfig = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getLocalizedConfig($addon, 'website_schema', $effectiveClangId, []);
-        $organizationConfig = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getLocalizedConfig($addon, 'organization_schema', $effectiveClangId, []);
+        $websiteConfig = self::getGlobalSchemaConfig($addon, 'website_schema', $effectiveClangId, []);
+        $organizationConfig = self::getGlobalSchemaConfig($addon, 'organization_schema', $effectiveClangId, []);
         $localBusinessConfig = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getLocalizedConfig($addon, 'localbusiness_schema', $effectiveClangId, []);
         
         $branchIds = self::normalizeBranchIds($branchId);
@@ -408,6 +417,10 @@ class JsonLdGenerator
                     $organizationSchema['contactPoint'] = $contactPoint;
                 }
             }
+
+            if (!empty($organizationConfig['custom_jsonld']) && is_array($organizationConfig['custom_jsonld'])) {
+                $organizationSchema = CustomJsonLdHelper::mergeIntoSchema($organizationSchema, $organizationConfig['custom_jsonld']);
+            }
             
             $jsonLdItems[] = $organizationSchema;
             
@@ -431,20 +444,30 @@ class JsonLdGenerator
                 $websiteSchema['description'] = $websiteConfig['description'];
             }
             
-            if (!empty($websiteConfig['search_action']) && !empty($websiteConfig['search_action']['target'])) {
+            $searchAction = [];
+            if (!empty($websiteConfig['search_action']) && is_array($websiteConfig['search_action'])) {
                 $searchAction = $websiteConfig['search_action'];
+            } elseif (!empty($websiteConfig['potentialAction']) && is_array($websiteConfig['potentialAction'])) {
+                $searchAction = $websiteConfig['potentialAction'];
+            }
+
+            if (!empty($searchAction['target']) && (!array_key_exists('enabled', $searchAction) || !empty($searchAction['enabled']))) {
                 $websiteSchema['potentialAction'] = [
                     '@type' => 'SearchAction',
                     'target' => trim($searchAction['target']),
                     'query-input' => 'required name=search_term_string'
                 ];
             }
-            
+
             // Verbindung zur Organization
             if (!empty($organizationConfig['name'])) {
                 $websiteSchema['publisher'] = [
                     '@id' => rtrim(\rex::getServer(), '/') . '/#organization'
                 ];
+            }
+
+            if (!empty($websiteConfig['custom_jsonld']) && is_array($websiteConfig['custom_jsonld'])) {
+                $websiteSchema = CustomJsonLdHelper::mergeIntoSchema($websiteSchema, $websiteConfig['custom_jsonld']);
             }
             
             $jsonLdItems[] = $websiteSchema;
@@ -784,6 +807,19 @@ class JsonLdGenerator
         return [];
     }
 
+    private static function getGlobalSchemaConfig(\rex_addon $addon, string $baseKey, int $clangId, array $default = []): array
+    {
+        if (class_exists(__NAMESPACE__ . '\\DomainConfig') && DomainConfig::isMultiDomain()) {
+            $configKey = $baseKey . '_domain_' . DomainConfig::getActiveDomainId() . '_clang_' . $clangId;
+            $domainConfig = $addon->getConfig($configKey, null);
+            if (is_array($domainConfig)) {
+                return $domainConfig;
+            }
+        }
+
+        return \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getLocalizedConfig($addon, $baseKey, $clangId, $default);
+    }
+
     private static function getBranchDomainCondition(): array
     {
         if (
@@ -925,6 +961,11 @@ class JsonLdGenerator
                 'name' => $localBusinessConfig['name']
             ];
 
+            $imageUrls = self::normalizeLocalBusinessImageUrls($localBusinessConfig);
+            if (!empty($imageUrls)) {
+                $localBusinessSchema['image'] = count($imageUrls) === 1 ? $imageUrls[0] : $imageUrls;
+            }
+
             // hasMap ergänzen, wenn gesetzt
             if (!empty($localBusinessConfig['hasMap'])) {
                 $localBusinessSchema['hasMap'] = $localBusinessConfig['hasMap'];
@@ -1016,7 +1057,47 @@ class JsonLdGenerator
             $localBusinessSchema['address'] = array_merge(['@type' => 'PostalAddress'], $address);
         }
 
+        if (!empty($localBusinessConfig['custom_jsonld']) && is_array($localBusinessConfig['custom_jsonld'])) {
+            $localBusinessSchema = CustomJsonLdHelper::mergeIntoSchema($localBusinessSchema, $localBusinessConfig['custom_jsonld']);
+        }
+
         return $localBusinessSchema;
+    }
+
+    private static function normalizeLocalBusinessImageUrls(array $localBusinessConfig): array
+    {
+        $rawImages = $localBusinessConfig['images'] ?? $localBusinessConfig['image'] ?? [];
+        if (is_string($rawImages)) {
+            $rawImages = preg_split('/[\r\n,]+/', $rawImages) ?: [];
+        }
+
+        if (!is_array($rawImages)) {
+            return [];
+        }
+
+        $baseUrl = rtrim(self::getWebsiteUrl(), '/');
+        $imageUrls = [];
+
+        foreach ($rawImages as $rawImage) {
+            $file = trim((string) $rawImage);
+            if ($file === '') {
+                continue;
+            }
+
+            if (preg_match('~^https?://~i', $file)) {
+                $imageUrls[] = $file;
+                continue;
+            }
+
+            $mediaPath = \rex_url::media($file);
+            if ($mediaPath === '') {
+                continue;
+            }
+
+            $imageUrls[] = str_starts_with($mediaPath, 'http') ? $mediaPath : $baseUrl . $mediaPath;
+        }
+
+        return array_values(array_unique($imageUrls));
     }
     
     /**

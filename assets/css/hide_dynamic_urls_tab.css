@@ -1,0 +1,7 @@
+/* JSON-LD Manager: Hide dynamic URLs tab when URL addon/profile is unavailable */
+
+#rex-page-jsonld_manager-dynamic_urls,
+.rex-page-jsonld_manager-dynamic_urls,
+a[href*="page=jsonld_manager/dynamic_urls"] {
+    display: none !important;
+}

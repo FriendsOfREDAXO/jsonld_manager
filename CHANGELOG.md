@@ -3,6 +3,45 @@
 
 Dieses Changelog wird ab Version `1.0.0` neu geführt.
 
+## 2026-06-02
+
+### Added
+- Neues Fieldset `Sprache kopieren` auf der Einstellungsseite (`settings`) zum Kopieren aller sprachbezogenen JSON-LD Inhalte von einer Quelle in eine Zielsprache.
+- Neue Custom-Fieldsets in den Formularen für Organization (`schemas`), WebSite (`global_website`) und LocalBusiness (`global_localbusiness`).
+- Je Formular kann ein JSON-Objekt mit zusätzlichen Schema-Eigenschaften hinterlegt werden.
+
+### Security
+- Serverseitige JSON-Validierung/Sanitizing für Custom-Angaben hinzugefügt; ungültige Eingaben werden nicht gespeichert.
+- Geschützte Schlüssel `@context`, `@type` und `@id` werden nicht überschrieben.
+- JSON-LD Ausgabe-Encoder wurde mit `JSON_HEX_*` abgesichert, um Script-Injection über Textinhalte zu verhindern.
+- Validierung fängt tiefe/fehlerhafte Verschachtelungen kontrolliert ab (kein ungefangener Runtime-Abbruch im Save-Flow).
+
+### Changed
+- Beim Sprachkopieren werden `jsonld_localbusiness_branches` und `jsonld_schemas` inklusive Zuordnungen übernommen.
+- Branch-basierte Referenzen werden per ID-Mapping korrekt auf die neuen Ziel-Standort-IDs umgeschrieben (`localbusiness_branch_id`, `localbusiness_branch_ids`, `article_branch_*`).
+- Zielsprach-spezifische JSON-LD Konfigurations-Keys werden vor dem Kopieren ersetzt, um eine konsistente 1:1-Übernahme zu gewährleisten.
+- Generator merged Custom-Daten jetzt zentral in Organization-, WebSite- und LocalBusiness-Schema.
+- WebSite-SearchAction liest kompatibel sowohl `search_action` als auch `potentialAction`.
+- LocalBusiness-Custom-Merge auf Generator-Ende verschoben (Parität zur Backend-Vorschau).
+- Multi-Domain-Setzung des Hauptstandorts auf aktive Domain begrenzt.
+- Entspricht der Umsetzung von GitHub Issue `#10`.
+- Status: GitHub Issue `#10` ist geschlossen.
+
+### Fixed
+- LocalBusiness-Bilder werden im Frontend wieder korrekt im JSON-LD (`image`) ausgegeben.
+- Normalisierung für `images`/`image` aus Branch-Konfiguration ergänzt (CSV/Array, relative Media-Dateien und absolute URLs).
+- Backend-Vorschau in `global_localbusiness` korrigiert, damit die Domain-Base-URL in JavaScript korrekt gesetzt wird.
+- GitHub: Entspricht dem Abschluss von Issue `#9`.
+
+### GitHub
+- Mit den heutigen Änderungen werden die aktuell offenen Tickets geschlossen: `#4`, `#5`, `#6`, `#7`, `#8`, `#9` und `#10`.
+
+## v1.0.0.beta16 (02. Juni 2026)
+
+**UX / Light-Mode Lesbarkeit:**
+
+**GitHub:**
+
 ## v1.0.0.beta16 (18. Mai 2026)
 
 **Release-Konsolidierung:**

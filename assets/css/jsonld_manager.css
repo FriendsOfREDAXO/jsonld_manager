@@ -150,6 +150,62 @@
     border-right: 1px solid rgba(0,0,0,0.1);
 }
 
+/* === SETTINGS PAGE (jsonld_manager/settings) === */
+.jsonld-template-warning-panel {
+    border-color: #8a6d3b !important;
+}
+
+.jsonld-template-warning-panel > .panel-heading {
+    background: #f0ad4e !important;
+    border-color: #eea236 !important;
+    color: #1f2d3a !important;
+}
+
+.jsonld-template-warning-panel > .panel-heading .panel-title {
+    color: #1f2d3a !important;
+}
+
+.jsonld-language-copy-panel .panel-body {
+    padding: 15px !important;
+}
+
+.jsonld-language-copy-panel .form-group {
+    margin: 0 0 12px 0 !important;
+}
+
+.jsonld-language-copy-panel .bootstrap-select {
+    display: block !important;
+    width: 100% !important;
+}
+
+.jsonld-language-copy-panel select.form-control,
+.jsonld-language-copy-panel .bootstrap-select > .dropdown-toggle {
+    width: 100% !important;
+}
+
+.jsonld-language-copy-panel .jsonld-copy-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    text-align: left !important;
+}
+
+.jsonld-language-copy-panel .help-block {
+    margin: 0;
+}
+
+.jsonld-language-copy-panel .jsonld-copy-help-block {
+    margin-bottom: 12px;
+}
+
+.jsonld-language-copy-panel .jsonld-copy-meta-group {
+    margin-bottom: 0 !important;
+}
+
+.jsonld-language-copy-panel .jsonld-copy-submit-btn {
+    margin-top: 0;
+}
+
 .jsonld-overview .btn-group .btn:last-child {
     border-right: none;
 }
@@ -510,4 +566,67 @@
     line-height: 1.45;
     font-family: Monaco, Menlo, monospace;
     margin-bottom: 12px;
+}
+
+/* === LIGHT MODE READABILITY FIXES === */
+/* Fallback mit hoher Priorität: nur im Light-Mode */
+body.rex-theme-light .panel textarea.form-control,
+body:not(.rex-theme-dark):not(.rex-theme-light) .panel textarea.form-control {
+    background-color: #f8fafc !important;
+    color: #25313b !important;
+    border-color: #cfd6de !important;
+}
+
+body.rex-theme-light .panel textarea.form-control::placeholder,
+body:not(.rex-theme-dark):not(.rex-theme-light) .panel textarea.form-control::placeholder {
+    color: #7a8694 !important;
+}
+
+body.rex-theme-light .panel textarea.form-control:focus,
+body:not(.rex-theme-dark):not(.rex-theme-light) .panel textarea.form-control:focus {
+    background-color: #ffffff !important;
+    color: #25313b !important;
+    border-color: #6fa8d8 !important;
+    box-shadow: 0 0 0 2px rgba(111, 168, 216, 0.18) !important;
+}
+
+body.rex-theme-light .panel textarea.form-control,
+body:not(.rex-theme-dark) .panel textarea.form-control {
+    background-color: #ffffff;
+    color: #2f3942;
+    border-color: #cfd6de;
+}
+
+body.rex-theme-light .panel textarea.form-control::placeholder,
+body:not(.rex-theme-dark) .panel textarea.form-control::placeholder {
+    color: #7a8694;
+}
+
+body.rex-theme-light .panel textarea.form-control:focus,
+body:not(.rex-theme-dark) .panel textarea.form-control:focus {
+    border-color: #6fa8d8;
+    box-shadow: 0 0 0 2px rgba(111, 168, 216, 0.18);
+}
+
+body.rex-theme-light .article-table .article-row td,
+body:not(.rex-theme-dark) .article-table .article-row td {
+    background-color: #f5f8fb;
+    color: #2f3942;
+}
+
+body.rex-theme-light .article-table .article-row:hover td,
+body:not(.rex-theme-dark) .article-table .article-row:hover td {
+    background-color: #e9f1f8;
+}
+
+body.rex-theme-light .article-table .article-path,
+body:not(.rex-theme-dark) .article-table .article-path {
+    color: #6c7b89;
+}
+
+body.rex-theme-light .article-table .article-row.active td,
+body.rex-theme-light .article-table .article-row.active:hover td,
+body:not(.rex-theme-dark) .article-table .article-row.active td,
+body:not(.rex-theme-dark) .article-table .article-row.active:hover td {
+    background-color: #2f7fbe !important;
 }

@@ -4,6 +4,7 @@
  */
 
 use FriendsOfRedaxo\JsonLdManager\DomainConfig;
+use FriendsOfRedaxo\JsonLdManager\CustomJsonLdHelper;
 
 $websiteAction = rex_post('website_action', 'string', '');
 $websiteSaveError = '';
@@ -48,6 +49,12 @@ if ($websiteAction === 'save') {
         }
     }
 
+    $customJsonRaw = rex_post('website_custom_jsonld_raw', 'string', '');
+    $customJsonResult = CustomJsonLdHelper::parseCustomObject($customJsonRaw);
+    if (!empty($customJsonResult['errors'])) {
+        $websiteSaveError = implode(' ', $customJsonResult['errors']);
+    }
+
     $config = [
         'name' => rex_post('website_name', 'string', ''),
         'url' => rex_post('website_url', 'string', ''),
@@ -56,6 +63,8 @@ if ($websiteAction === 'save') {
             'target' => $searchUrl,
             'enabled' => $searchEnabled,
         ],
+        'custom_jsonld_raw' => $customJsonResult['raw'] ?? '',
+        'custom_jsonld' => $customJsonResult['data'] ?? [],
     ];
 
     if ($websiteSaveError === '') {
@@ -67,6 +76,9 @@ if ($websiteAction === 'save') {
             \FriendsOfRedaxo\JsonLdManager\LanguageConfig::setLocalizedConfig($addon, 'website_schema', $activeClangId, $config);
         }
         echo rex_view::success('WebSite Schema wurde gespeichert.');
+        if (!empty($customJsonResult['warnings'])) {
+            echo rex_view::warning(implode(' ', $customJsonResult['warnings']));
+        }
     } else {
         echo rex_view::error($websiteSaveError);
     }
@@ -120,6 +132,10 @@ function generateWebsiteJsonLd($websiteConfig, $autoLanguageCode) {
             ];
         }
     }
+
+    if (!empty($websiteConfig['custom_jsonld']) && is_array($websiteConfig['custom_jsonld'])) {
+        $jsonld = CustomJsonLdHelper::mergeIntoSchema($jsonld, $websiteConfig['custom_jsonld']);
+    }
     
     return $jsonld;
 }
@@ -163,6 +179,7 @@ function updateWebsitePreview() {
     const inLanguage = ' . json_encode($autoLanguageCode, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . ';
     const searchEnabled = !!document.querySelector("input[name=search_enabled]:checked");
     const searchUrl = document.getElementById("search_url")?.value || "";
+    const customRaw = document.getElementById("website_custom_jsonld_raw")?.value || "";
 
     const jsonld = {
         "@context": "https://schema.org",
@@ -201,10 +218,51 @@ function updateWebsitePreview() {
         };
     }
 
+    const customHelp = document.getElementById("website_custom_jsonld_help");
+    if (customHelp) {
+        customHelp.style.color = "#999";
+        customHelp.textContent = "Nur JSON-Objekt, z. B. {\"keywords\": [\"jsonld\", \"seo\"]}. @context/@type/@id werden ignoriert.";
+    }
+
+    if (customRaw.trim()) {
+        try {
+            const customData = JSON.parse(customRaw);
+            if (!customData || Array.isArray(customData) || typeof customData !== "object") {
+                throw new Error("Custom JSON muss ein Objekt sein");
+            }
+
+            mergeCustomIntoSchema(jsonld, customData);
+        } catch (error) {
+            if (customHelp) {
+                customHelp.style.color = "#d9534f";
+                customHelp.textContent = "Ungueltiges Custom-JSON: " + (error && error.message ? error.message : "Bitte JSON pruefen.");
+            }
+        }
+    }
+
     const preview = document.getElementById("json-preview");
     if (preview) {
         preview.textContent = JSON.stringify(jsonld, null, 2);
     }
+}
+
+function mergeCustomIntoSchema(target, source) {
+    Object.keys(source || {}).forEach(function(key) {
+        if (!key || key === "@context" || key === "@type" || key === "@id") {
+            return;
+        }
+
+        const value = source[key];
+        if (
+            value && typeof value === "object" && !Array.isArray(value)
+            && target[key] && typeof target[key] === "object" && !Array.isArray(target[key])
+        ) {
+            mergeCustomIntoSchema(target[key], value);
+            return;
+        }
+
+        target[key] = value;
+    });
 }
 
 function initPreviewFloating() {
@@ -321,6 +379,19 @@ echo '          <div class="form-group">';
 echo '            <label for="search_url">Such-URL:</label>';
 echo '            <input type="text" name="search_url" id="search_url" class="form-control" value="' . htmlspecialchars($websiteConfig['potentialAction']['target'] ?? '') . '" placeholder="https://example.com/search?q={search_term_string}">';
 echo '            <small id="search_url_help" class="help-block" style="color: #999;">Verwende {search_term_string} als Platzhalter. Ohne aktivierte Suchfunktion wird kein SearchAction ausgegeben.</small>';
+echo '          </div>';
+
+echo '        </div>';
+echo '      </div>';
+
+echo '      <div class="panel panel-primary">';
+echo '        <header class="panel-heading"><h1 class="panel-title">Custom JSON-LD Angaben</h1></header>';
+echo '        <div class="panel-body">';
+
+echo '          <div class="form-group">';
+echo '            <label for="website_custom_jsonld_raw">Zusatzfelder (JSON-Objekt):</label>';
+echo '            <textarea name="website_custom_jsonld_raw" id="website_custom_jsonld_raw" class="form-control" rows="8" placeholder="{&#10;  &quot;keywords&quot;: [&quot;jsonld&quot;, &quot;seo&quot;],&#10;  &quot;additionalType&quot;: &quot;https://example.com/types/custom&quot;&#10;}">' . htmlspecialchars($websiteConfig['custom_jsonld_raw'] ?? '') . '</textarea>';
+echo '            <small id="website_custom_jsonld_help" class="help-block" style="color: #999;">Nur JSON-Objekt, z. B. {"keywords": ["jsonld", "seo"]}. @context/@type/@id werden ignoriert.</small>';
 echo '          </div>';
 
 echo '        </div>';

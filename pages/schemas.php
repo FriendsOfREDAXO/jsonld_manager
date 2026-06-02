@@ -4,6 +4,7 @@
  */
 
 use FriendsOfRedaxo\JsonLdManager\DomainConfig;
+use FriendsOfRedaxo\JsonLdManager\CustomJsonLdHelper;
 
 /**
  * Liste aus Eingabefeld parsen (Zeilen oder kommagetrennt).
@@ -49,6 +50,12 @@ if ($organizationAction === 'save') {
     } else {
     $sameAs = jsonld_manager_parse_list_input(rex_post('org_same_as', 'string', ''));
     
+    $customRaw = rex_post('org_custom_jsonld_raw', 'string', '');
+    $customParse = CustomJsonLdHelper::parseCustomObject($customRaw);
+
+    if (!empty($customParse['errors'])) {
+        echo rex_view::error(implode(' ', $customParse['errors']));
+    } else {
     $config = [
         'name' => rex_post('org_name', 'string', ''),
         'url' => rex_post('org_url', 'string', ''),
@@ -66,6 +73,8 @@ if ($organizationAction === 'save') {
             'email' => rex_post('org_email', 'string', ''),
             'contactType' => rex_post('org_contact_type', 'string', ''),
         ],
+        'custom_jsonld_raw' => $customParse['raw'],
+        'custom_jsonld' => $customParse['data'],
     ];
 
     // Domain + Sprach-spezifische Konfiguration speichern
@@ -77,6 +86,10 @@ if ($organizationAction === 'save') {
     }
     
     echo rex_view::success('Organization Schema wurde gespeichert.');
+    if (!empty($customParse['warnings'])) {
+        echo rex_view::warning(implode('<br>', array_map('htmlspecialchars', $customParse['warnings'])));
+    }
+    }
     }
 }
 
@@ -133,6 +146,7 @@ function updateOrganizationPreview() {
     const logo = document.getElementById("org_logo")?.value || "";
     const description = document.getElementById("org_description")?.value || "";
     const sameAsRaw = document.getElementById("org_same_as")?.value || "";
+    const customRaw = document.getElementById("org_custom_jsonld_raw")?.value || "";
 
     const street = document.getElementById("org_street")?.value || "";
     const city = document.getElementById("org_city")?.value || "";
@@ -171,9 +185,79 @@ function updateOrganizationPreview() {
         if (contactType) jsonld.contactPoint.contactType = contactType;
     }
 
+    try {
+        const custom = parseCustomJsonObject(customRaw);
+        if (custom) {
+            mergeCustomIntoSchema(jsonld, custom);
+        }
+        setCustomJsonHint("");
+    } catch (err) {
+        setCustomJsonHint(err.message || "Ungültiges Custom-JSON.");
+    }
+
     const preview = document.getElementById("json-preview");
     if (preview) {
         preview.textContent = JSON.stringify(jsonld, null, 2);
+    }
+}
+
+function parseCustomJsonObject(raw) {
+    const value = (raw || "").trim();
+    if (!value) {
+        return null;
+    }
+
+    let parsed;
+    try {
+        parsed = JSON.parse(value);
+    } catch (e) {
+        throw new Error("Custom JSON ist ungültig.");
+    }
+
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+        throw new Error("Custom JSON muss ein Objekt sein.");
+    }
+
+    return parsed;
+}
+
+function mergeCustomIntoSchema(target, custom) {
+    const protectedKeys = { "@context": true, "@type": true, "@id": true };
+
+    Object.keys(custom).forEach(function(key) {
+        if (protectedKeys[key]) {
+            return;
+        }
+
+        const value = custom[key];
+        if (
+            value
+            && typeof value === "object"
+            && !Array.isArray(value)
+            && target[key]
+            && typeof target[key] === "object"
+            && !Array.isArray(target[key])
+        ) {
+            mergeCustomIntoSchema(target[key], value);
+            return;
+        }
+
+        target[key] = value;
+    });
+}
+
+function setCustomJsonHint(message) {
+    const help = document.getElementById("org_custom_jsonld_help");
+    if (!help) {
+        return;
+    }
+
+    if (message) {
+        help.textContent = message;
+        help.style.color = "#d9534f";
+    } else {
+        help.textContent = "Optionales JSON-Objekt mit Zusatzfeldern. @context, @type und @id werden ignoriert.";
+        help.style.color = "#999";
     }
 }
 
@@ -341,6 +425,17 @@ echo '              <option value="CH"' . ($country === 'CH' ? ' selected' : '')
 echo '            </select>';
 echo '          </div>';
 
+echo '        </div>';
+echo '      </div>';
+
+echo '      <div class="panel panel-primary">';
+echo '        <header class="panel-heading"><h1 class="panel-title">Custom Angaben</h1></header>';
+echo '        <div class="panel-body">';
+echo '          <div class="form-group">';
+echo '            <label for="org_custom_jsonld_raw">Zusätzliche JSON-LD Felder (JSON-Objekt):</label>';
+echo '            <textarea name="org_custom_jsonld_raw" id="org_custom_jsonld_raw" class="form-control" rows="8" placeholder="{&#10;  &quot;keywords&quot;: [&quot;jsonld&quot;, &quot;seo&quot;],&#10;  &quot;additionalType&quot;: &quot;https://example.com/types/custom&quot;&#10;}">' . htmlspecialchars((string) ($organizationConfig['custom_jsonld_raw'] ?? '')) . '</textarea>';
+echo '            <small id="org_custom_jsonld_help" class="help-block" style="color: #999;">Optionales JSON-Objekt mit Zusatzfeldern. @context, @type und @id werden ignoriert.</small>';
+echo '          </div>';
 echo '        </div>';
 echo '      </div>';
 echo '    </form>';

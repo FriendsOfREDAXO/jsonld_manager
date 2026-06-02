@@ -4,6 +4,7 @@
  */
 
 use FriendsOfRedaxo\JsonLdManager\DomainConfig;
+use FriendsOfRedaxo\JsonLdManager\CustomJsonLdHelper;
 
 $func = rex_request('func', 'string', '');
 $lbAction = rex_post('lb_action', 'string', '');
@@ -103,10 +104,23 @@ if ($lbAction === 'create_branch') {
         $message .= rex_view::error('Sicherheitsprüfung fehlgeschlagen (CSRF). Bitte Seite neu laden.');
     } else {
     $sql = rex_sql::factory();
-    // Alle als Nicht-Hauptstandort setzen
-    $sql->setQuery('UPDATE ' . rex::getTable('jsonld_localbusiness_branches') . ' SET is_main_branch = 0 WHERE clang_id = ?', [$activeClangId]);
-    // Gewählte als Hauptstandort setzen
-    $sql->setQuery('UPDATE ' . rex::getTable('jsonld_localbusiness_branches') . ' SET is_main_branch = 1 WHERE id = ? AND clang_id = ?', [$branchId, $activeClangId]);
+
+    $checkDomainColumnSetMain = rex_sql::factory();
+    $checkDomainColumnSetMain->setQuery('SHOW COLUMNS FROM ' . rex::getTable('jsonld_localbusiness_branches') . ' LIKE "domain_id"');
+    $hasDomainColumnSetMain = $checkDomainColumnSetMain->getRows() > 0;
+
+    if ($hasDomainColumnSetMain && DomainConfig::isMultiDomain()) {
+        // Alle als Nicht-Hauptstandort setzen (nur aktive Domain)
+        $sql->setQuery('UPDATE ' . rex::getTable('jsonld_localbusiness_branches') . ' SET is_main_branch = 0 WHERE clang_id = ? AND (domain_id = ? OR domain_id IS NULL)', [$activeClangId, $activeDomainId]);
+        // Gewählte als Hauptstandort setzen (nur aktive Domain)
+        $sql->setQuery('UPDATE ' . rex::getTable('jsonld_localbusiness_branches') . ' SET is_main_branch = 1 WHERE id = ? AND clang_id = ? AND (domain_id = ? OR domain_id IS NULL)', [$branchId, $activeClangId, $activeDomainId]);
+    } else {
+        // Alle als Nicht-Hauptstandort setzen
+        $sql->setQuery('UPDATE ' . rex::getTable('jsonld_localbusiness_branches') . ' SET is_main_branch = 0 WHERE clang_id = ?', [$activeClangId]);
+        // Gewählte als Hauptstandort setzen
+        $sql->setQuery('UPDATE ' . rex::getTable('jsonld_localbusiness_branches') . ' SET is_main_branch = 1 WHERE id = ? AND clang_id = ?', [$branchId, $activeClangId]);
+    }
+
     $message .= rex_view::success('Hauptstandort wurde aktualisiert.');
     }
 }
@@ -445,7 +459,9 @@ function jsonld_manager_create_opening_hours_yform(array $rows, bool $withFixdat
 }
 
 // === SPEICHERN (Branch-spezifisch) ===
-if ($lbAction === 'save' && $branchId > 0) {
+if ($lbAction === 'save' && $branchId <= 0) {
+    $message .= rex_view::error('Bitte legen Sie zuerst einen Standort an oder wählen Sie einen Standort aus, bevor Sie speichern.');
+} elseif ($lbAction === 'save' && $branchId > 0) {
     if (!$csrfToken->isValid()) {
         $message .= rex_view::error('Sicherheitsprüfung fehlgeschlagen (CSRF). Bitte Seite neu laden.');
     } else {
@@ -498,6 +514,12 @@ if ($lbAction === 'save' && $branchId > 0) {
     $contactPoint = array_filter($contactPoint, static function ($value) {
         return trim((string) $value) !== '';
     });
+
+    $customRaw = rex_post('lb_custom_jsonld_raw', 'string', '');
+    $customParse = CustomJsonLdHelper::parseCustomObject($customRaw);
+    if (!empty($customParse['errors'])) {
+        $message .= rex_view::error(implode(' ', $customParse['errors']));
+    }
 
     // Bestehende Konfiguration der Standort laden
     $branchSql = rex_sql::factory();
@@ -583,19 +605,26 @@ if ($lbAction === 'save' && $branchId > 0) {
             'longitude' => $longitude
         ],
         'openingHoursSpecification' => $normalizedOpeningHours,
-        'coordinates' => $coordinates
+        'coordinates' => $coordinates,
+        'custom_jsonld_raw' => $customParse['raw'] ?? '',
+        'custom_jsonld' => $customParse['data'] ?? [],
     ];
-    
-    // In Branch-Datenbank speichern
-    $saveSql = rex_sql::factory();
-    $saveSql->setQuery('UPDATE ' . rex::getTable('jsonld_localbusiness_branches') . ' SET config = ?, modified = ? WHERE id = ? AND clang_id = ?', [
-        json_encode($config),
-        date('Y-m-d H:i:s'),
-        $branchId,
-        $activeClangId
-    ]);
-    
-    $message .= rex_view::success('LocalBusiness Schema für Standort wurde gespeichert.');
+
+    if (empty($customParse['errors'])) {
+        // In Branch-Datenbank speichern
+        $saveSql = rex_sql::factory();
+        $saveSql->setQuery('UPDATE ' . rex::getTable('jsonld_localbusiness_branches') . ' SET config = ?, modified = ? WHERE id = ? AND clang_id = ?', [
+            json_encode($config),
+            date('Y-m-d H:i:s'),
+            $branchId,
+            $activeClangId
+        ]);
+
+        $message .= rex_view::success('LocalBusiness Schema für Standort wurde gespeichert.');
+        if (!empty($customParse['warnings'])) {
+            $message .= rex_view::warning(implode('<br>', array_map('htmlspecialchars', $customParse['warnings'])));
+        }
+    }
     }
 }
 
@@ -640,6 +669,8 @@ if ($branchId > 0) {
         }
     }
 }
+
+$isFormLocked = $selectedBranch === null;
 if (empty($localBusinessConfig['images']) && !empty($localBusinessConfig['image'])) {
     $localBusinessConfig['images'] = (string) $localBusinessConfig['image'];
 }
@@ -685,6 +716,8 @@ ob_start();
 
 echo \FriendsOfRedaxo\JsonLdManager\LanguageConfig::renderClangTabs($activeClangId);
 
+$baseUrlJs = htmlspecialchars(getWebsiteUrlForDomain($activeDomainId), ENT_QUOTES);
+
 // Live JSON-LD Generator JavaScript
 echo '<style>
 .jsonld-preview-col {
@@ -710,10 +743,16 @@ echo '<style>
 </style>
 <script>
 // Domain-spezifische Base-URL für JavaScript
-const baseUrl = "<?= getWebsiteUrlForDomain($activeDomainId) ?>";
+const baseUrl = "' . $baseUrlJs . '";
 const mediaBaseUrl = baseUrl + "/media/";
+const hasEditableBranch = ' . ($isFormLocked ? 'false' : 'true') . ';
 
 function updateJSON() {
+    if (!hasEditableBranch) {
+        document.getElementById("json-preview").textContent = "Bitte zuerst einen Standort anlegen. Danach werden Formular und Vorschau aktiviert.";
+        return;
+    }
+
     const name = document.getElementById("lb_name").value;
     
     // Wenn kein Geschäftsname angegeben ist, JSON leer lassen
@@ -738,6 +777,7 @@ function updateJSON() {
     const contactPointType = document.getElementById("lb_contactpoint_type") ? document.getElementById("lb_contactpoint_type").value : "";
     const contactPointLanguage = document.getElementById("lb_contactpoint_language") ? document.getElementById("lb_contactpoint_language").value : "";
     const contactPointAreaServed = document.getElementById("lb_contactpoint_area_served") ? document.getElementById("lb_contactpoint_area_served").value : "";
+    const customRaw = document.getElementById("lb_custom_jsonld_raw") ? document.getElementById("lb_custom_jsonld_raw").value : "";
     const contactPointLanguageList = contactPointLanguage.split(/[\n,]+/).map(function(v) { return v.trim(); }).filter(Boolean);
     const contactPointAreaServedList = contactPointAreaServed.split(/[\n,]+/).map(function(v) { return v.trim(); }).filter(Boolean);
     
@@ -820,8 +860,78 @@ function updateJSON() {
     jsonld.publisher = {
         "@id": baseUrl + "#organization"
     };
+
+    try {
+        const custom = parseCustomJsonObject(customRaw);
+        if (custom) {
+            mergeCustomIntoSchema(jsonld, custom);
+        }
+        setCustomJsonHint("");
+    } catch (err) {
+        setCustomJsonHint(err.message || "Ungültiges Custom-JSON.");
+    }
     
     document.getElementById("json-preview").textContent = JSON.stringify(jsonld, null, 2);
+}
+
+function parseCustomJsonObject(raw) {
+    const value = (raw || "").trim();
+    if (!value) {
+        return null;
+    }
+
+    let parsed;
+    try {
+        parsed = JSON.parse(value);
+    } catch (e) {
+        throw new Error("Custom JSON ist ungültig.");
+    }
+
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+        throw new Error("Custom JSON muss ein Objekt sein.");
+    }
+
+    return parsed;
+}
+
+function mergeCustomIntoSchema(target, custom) {
+    const protectedKeys = { "@context": true, "@type": true, "@id": true };
+
+    Object.keys(custom).forEach(function(key) {
+        if (protectedKeys[key]) {
+            return;
+        }
+
+        const value = custom[key];
+        if (
+            value
+            && typeof value === "object"
+            && !Array.isArray(value)
+            && target[key]
+            && typeof target[key] === "object"
+            && !Array.isArray(target[key])
+        ) {
+            mergeCustomIntoSchema(target[key], value);
+            return;
+        }
+
+        target[key] = value;
+    });
+}
+
+function setCustomJsonHint(message) {
+    const help = document.getElementById("lb_custom_jsonld_help");
+    if (!help) {
+        return;
+    }
+
+    if (message) {
+        help.textContent = message;
+        help.style.color = "#d9534f";
+    } else {
+        help.textContent = "Optionales JSON-Objekt mit Zusatzfeldern. @context, @type und @id werden ignoriert.";
+        help.style.color = "#999";
+    }
 }
 
 // Event listeners für Live-Updates
@@ -927,7 +1037,11 @@ document.addEventListener("DOMContentLoaded", function() {
                 setTimeout(updateJSON, 0);
             }
         });
-        form.addEventListener("submit", function() {
+        form.addEventListener("submit", function(event) {
+            if (!hasEditableBranch) {
+                event.preventDefault();
+                return;
+            }
             const coordinates = document.getElementById("lb_coordinates");
 
             setHiddenField(form, "lb_coordinates_sync", coordinates ? coordinates.value : "");
@@ -998,6 +1112,8 @@ echo '<div class="row">
             <input type="hidden" name="lb_action" value="save">
             <input type="hidden" name="domain_id" value="' . $activeDomainId . '">
             <input type="hidden" name="branch_id" value="' . $branchId . '">
+            ' . ($isFormLocked ? '<div class="alert alert-warning" style="margin-bottom: 15px;">Bitte legen Sie zuerst einen Standort an. Ohne Standort sind Eingaben und Speichern deaktiviert.</div>' : '') . '
+            <fieldset ' . ($isFormLocked ? 'disabled="disabled" aria-disabled="true"' : '') . '>
             
             <div class="panel panel-primary">
                 <header class="panel-heading">
@@ -1220,6 +1336,21 @@ echo '              <option value=""' . ($contactPointType === '' ? ' selected' 
                 </div>
             </div>
 
+            <div class="panel panel-primary">
+                <header class="panel-heading">
+                    <h1 class="panel-title">Custom Angaben</h1>
+                </header>
+                <div class="panel-body">
+                    <div class="form-group">
+                        <label for="lb_custom_jsonld_raw">Zusätzliche JSON-LD Felder (JSON-Objekt):</label>
+                        <textarea name="lb_custom_jsonld_raw" id="lb_custom_jsonld_raw" class="form-control" rows="8" placeholder="{&#10;  &quot;keywords&quot;: [&quot;jsonld&quot;, &quot;seo&quot;],&#10;  &quot;additionalType&quot;: &quot;https://example.com/types/custom&quot;&#10;}">' . htmlspecialchars((string) ($localBusinessConfig['custom_jsonld_raw'] ?? '')) . '</textarea>
+                        <small id="lb_custom_jsonld_help" class="help-block" style="color: #999;">Optionales JSON-Objekt mit Zusatzfeldern. @context, @type und @id werden ignoriert.</small>
+                    </div>
+                </div>
+            </div>
+
+            </fieldset>
+
         </form>
     </div>
     
@@ -1296,7 +1427,7 @@ if (!empty($branches)) {
     
     echo '</tbody></table>';
 } else {
-    echo '<div class="alert alert-info">Noch keine Standorte angelegt. Erstellen Sie den ersten Standort oben.</div>';
+    echo '<div class="alert alert-info">Noch keine Standorte angelegt. Erstellen Sie zuerst einen Standort oben. Erst danach sind Formular und Speichern verfügbar.</div>';
 }
 
 
@@ -1338,7 +1469,7 @@ Geben Sie Daten ein um eine Vorschau zu sehen...
 <div id="jsonld-manager">
 <div class="rex-form-panel-footer">
   <div class="btn-toolbar">
-    <button type="submit" form="lb-main-form" name="localbusiness_save" class="btn btn-apply" value="1">Speichern</button>
+        <button type="submit" form="lb-main-form" name="localbusiness_save" class="btn btn-apply" value="1" ' . ($isFormLocked ? 'disabled="disabled" title="Bitte zuerst einen Standort anlegen"' : '') . '>Speichern</button>
   </div>
 </div>
 </div>';

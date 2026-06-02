@@ -68,6 +68,27 @@ Die übrigen Optionen helfen dabei:
 - `Validierung` prüft die JSON-Syntax
 - `Debug-Modus` hilft bei der Kontrolle während der Entwicklung
 
+### 3a. Sprache kopieren (Einstellungen)
+
+Im Bereich `Einstellungen` steht bei mehrsprachigen Projekten die Funktion `Sprache kopieren` zur Verfügung.
+
+Damit kannst du eine vollständige sprachabhängige JSON-LD-Konfiguration von einer Quellsprache in eine Zielsprache übernehmen.
+
+Kopiert werden:
+
+- sprachbezogene globale Konfigurationen (`Organization`, `WebSite`, domain-spezifische Sprach-Keys)
+- artikelbezogene Schema-Zuordnungen (`jsonld_schemas`)
+- LocalBusiness-Standorte der Sprache (`jsonld_localbusiness_branches`)
+
+Wichtiges Verhalten:
+
+- Bestehende Daten der Zielsprache werden vor dem Kopieren entfernt und anschließend durch die Quell-Daten ersetzt.
+- Beim Kopieren der Standorte wird ein internes ID-Mapping erstellt, damit Artikel-Zuordnungen in der Zielsprache auf die neu erzeugten Standort-IDs zeigen.
+
+Empfehlung:
+
+- Die Funktion nur bewusst einsetzen (z. B. initiale Sprachanlage oder kompletter Relaunch einer Sprache), da sie die Zielsprache überschreibt.
+
 ### 4. Optional: Dynamische URLs
 
 Wenn das AddOn `URL` installiert ist und dort mindestens ein Profil angelegt wurde, kannst du zusätzlich den Bereich `Dynamische URLs` nutzen.
