@@ -37,9 +37,6 @@ if (rex_request('ajax', 'string') === 'get_article_data') {
 if (rex_post('action') === 'save_website_config' && rex_post('article_id', 'int') && $csrfToken->isValid()) {
     $articleId = rex_post('article_id', 'int');
     $localbusiness_branch_ids = rex_post('localbusiness_branch_ids', 'array', []);
-    if (!is_array($localbusiness_branch_ids)) {
-        $localbusiness_branch_ids = $localbusiness_branch_ids ? [$localbusiness_branch_ids] : [];
-    }
     $config = [
         'name_field' => rex_post('name_field', 'string', ''),
         'description_field' => rex_post('description_field', 'string', ''),
@@ -82,7 +79,8 @@ if (rex_post('action') === 'save_website_config' && rex_post('article_id', 'int'
 /**
  * Artikel-Daten für AJAX abrufen
  */
-function getArticleData($articleId) {
+/** @return array<string, mixed>|null */
+function getArticleData(int $articleId): ?array {
     $sql = rex_sql::factory();
     $sql->setQuery('SELECT id, name, template_id, updatedate FROM ' . rex::getTable('article') . ' WHERE id = ? AND clang_id = ?', [$articleId, rex_clang::getStartId()]);
     
@@ -105,12 +103,14 @@ function getArticleData($articleId) {
 /**
  * Website Schema Konfiguration abrufen
  */
-function getWebsiteSchemaConfig($articleId) {
+/** @return array<string, mixed> */
+function getWebsiteSchemaConfig(int $articleId): array {
     $sql = rex_sql::factory();
     $sql->setQuery('SELECT config, active FROM ' . rex::getTable('jsonld_schemas') . ' WHERE article_id = ? AND clang_id = ? AND schema_type = "WebPage"', [$articleId, rex_clang::getStartId()]);
     
     if ($sql->hasNext()) {
-        $config = json_decode($sql->getValue('config'), true) ?? [];
+        $configRaw = $sql->getValue('config');
+        $config = is_string($configRaw) ? (json_decode($configRaw, true) ?? []) : [];
         $config['active'] = (bool) $sql->getValue('active');
         // Kompatibilität: Einzelwert zu Array
         if (isset($config['localbusiness_branch_id']) && !isset($config['localbusiness_branch_ids'])) {
@@ -133,8 +133,9 @@ function getWebsiteSchemaConfig($articleId) {
 
 /**
  * Verfügbare Meta-Felder ermitteln
+ * @return string[]
  */
-function getAvailableMetaFields() {
+function getAvailableMetaFields(): array {
     $fields = [
         '' => 'Bitte wählen',
         'name' => 'Artikelname',
@@ -180,8 +181,9 @@ function getAvailableMetaFields() {
 
 /**
  * Verfügbare LocalBusiness Standorte abrufen
+ * @return array<int, string>
  */
-function getAvailableLocalBusinessBranches() {
+function getAvailableLocalBusinessBranches(): array {
     $branches = [0 => 'Keine LocalBusiness Zuordnung (für allgemeine Seiten)'];
     
     try {
@@ -189,11 +191,11 @@ function getAvailableLocalBusinessBranches() {
         $sql->setQuery('SELECT id, branch_name, is_main_branch FROM ' . rex::getTable('jsonld_localbusiness_branches') . ' ORDER BY is_main_branch DESC, sort_order ASC, branch_name ASC');
         
         while ($sql->hasNext()) {
-            $label = $sql->getValue('branch_name');
+            $label = (string) $sql->getValue('branch_name');
             if ($sql->getValue('is_main_branch')) {
                 $label .= ' (Hauptstandort)';
             }
-            $branches[$sql->getValue('id')] = $label;
+            $branches[(int) $sql->getValue('id')] = $label;
             $sql->next();
         }
     } catch (Exception $e) {
@@ -206,7 +208,8 @@ function getAvailableLocalBusinessBranches() {
 /**
  * WebPage JSON-LD generieren
  */
-function generateWebPageJsonLd($articleId) {
+/** @return array<string, mixed>|null */
+function generateWebPageJsonLd(int $articleId): ?array {
     // Basis Article-Daten
     $article = rex_article::get($articleId, rex_clang::getStartId());
     if (!$article) return null;
@@ -216,7 +219,7 @@ function generateWebPageJsonLd($articleId) {
     $jsonld = [
         "@context" => "https://schema.org",
         "@type" => "WebPage",
-        "@id" => (\rex_addon::get('yrewrite')->isAvailable() ? rex_yrewrite::getFullUrlByArticleId($articleId) : rex_url::frontendController() . '?article_id=' . $articleId) . '#webpage'
+        "@id" => (rex_addon::get('yrewrite')->isAvailable() ? rex_yrewrite::getFullUrlByArticleId($articleId) : rex_url::frontendController() . '?article_id=' . $articleId) . '#webpage'
     ];
     // LocalBusiness-IDs als Array berücksichtigen
     if (!empty($config['localbusiness_branch_ids'])) {
@@ -238,7 +241,7 @@ function generateWebPageJsonLd($articleId) {
     }
     
     // URL
-    $jsonld['url'] = \rex_addon::get('yrewrite')->isAvailable() 
+    $jsonld['url'] = rex_addon::get('yrewrite')->isAvailable() 
         ? rex_yrewrite::getFullUrlByArticleId($articleId)
         : rex_url::frontendController() . '?article_id=' . $articleId;
     
@@ -246,7 +249,7 @@ function generateWebPageJsonLd($articleId) {
     if (!empty($config['image_field'])) {
         $imageValue = getFieldValue($article, $config['image_field']);
         if ($imageValue) {
-            $jsonld['image'] = (\rex_addon::get('yrewrite')->isAvailable() 
+            $jsonld['image'] = (rex_addon::get('yrewrite')->isAvailable() 
                 ? rex_yrewrite::getFullUrlByArticleId(1)
                 : rex_url::frontendController()) . '/media/' . $imageValue;
         }
@@ -258,14 +261,14 @@ function generateWebPageJsonLd($articleId) {
 /**
  * Feld-Wert aus Artikel extrahieren
  */
-function getFieldValue($article, $fieldName) {
+function getFieldValue(rex_article $article, string $fieldName): mixed {
     switch ($fieldName) {
         case 'name':
             return $article->getName();
         case 'yrewrite_title':
-            return \rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_title') : '';
+            return rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_title') : '';
         case 'yrewrite_description':
-            return \rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_description') : '';
+            return rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_description') : '';
         case 'art_description':
             return $article->getValue('art_description');
         default:
@@ -296,7 +299,7 @@ $templateSql = rex_sql::factory();
 $templateSql->setQuery('SELECT id, name FROM ' . rex::getTable('template') . ' ORDER BY name');
 $templates = [];
 while ($templateSql->hasNext()) {
-    $templates[$templateSql->getValue('id')] = $templateSql->getValue('name');
+    $templates[(int) $templateSql->getValue('id')] = (string) $templateSql->getValue('name');
     $templateSql->next();
 }
 
@@ -540,15 +543,15 @@ if ($sql->getRows() == 0) {
     echo '<tr><td colspan="3" class="text-center text-muted">Keine Artikel gefunden.</td></tr>';
 } else {
     while ($sql->hasNext()) {
-        $articleId = $sql->getValue('id');
-        $articleName = $sql->getValue('name');
-        $templateId = $sql->getValue('template_id');
+        $articleId = (int) $sql->getValue('id');
+        $articleName = (string) $sql->getValue('name');
+        $templateId = (int) $sql->getValue('template_id');
         $templateName = $templates[$templateId] ?? 'Unbekannt';
         
         echo '<tr class="article-row" data-article-id="' . $articleId . '" onclick="selectArticle(' . $articleId . ', \'' . htmlspecialchars($articleName, ENT_QUOTES) . '\')">
             <td>' . $articleId . '</td>
             <td><strong>' . htmlspecialchars($articleName) . '</strong></td>
-            <td><small>' . htmlspecialchars($templateName) . '</small></td>
+            <td><small>' . htmlspecialchars((string) $templateName) . '</small></td>
         </tr>';
         
         $sql->next();
@@ -633,7 +636,7 @@ echo '</select>
                         <label for="localbusiness_branch_ids">LocalBusiness Standorte:</label>
                         <select id="localbusiness_branch_ids" name="localbusiness_branch_ids[]" class="form-control selectpicker" data-live-search="true" data-size="10" multiple>';
 foreach ($availableBranches as $value => $label) {
-    echo '<option value="' . htmlspecialchars($value) . '">' . htmlspecialchars($label) . '</option>';
+    echo '<option value="' . htmlspecialchars((string) $value) . '">' . htmlspecialchars((string) $label) . '</option>';
 }
 echo '</select>
                         <small class="help-block">Mehrere Standorte auswählbar. "Keine" für allgemeine Seiten wie Impressum.</small>

@@ -2,6 +2,14 @@
 
 namespace FriendsOfRedaxo\JsonLdManager\Mapping;
 
+use rex_article;
+use rex_user;
+use rex_media;
+use rex_addon;
+use rex;
+use rex_media_manager;
+use rex_url;
+
 /**
  * DataSource Extensions - Erweiterte Datenquellen für JSON-LD Mapping
  * 
@@ -22,7 +30,10 @@ class DataSourceExtended extends DataSource
      * @param array $additionalData Zusätzliche Daten
      * @return mixed|null Aufgelöster Wert
      */
-    public static function getValue($source, $article, $additionalData = [])
+    /**
+     * @param array<string, mixed> $additionalData
+     */
+    public static function getValue(string $source, rex_article $article, array $additionalData = []): mixed
     {
         // Neue Cases für fehlende Properties
         if (strpos($source, ':') !== false) {
@@ -31,32 +42,32 @@ class DataSourceExtended extends DataSource
             $type = $source;
             $parameter = null;
         }
-        
+
         switch ($type) {
-            
+
             // === ERWEITERTE DATUM/ZEIT ===
             case 'date_published':
                 return date('Y-m-d', $article->getCreateDate());
-                
+
             case 'date_modified':
                 return date('Y-m-d', $article->getUpdateDate());
-                
+
             case 'iso_date_published':
                 return date('c', $article->getCreateDate());
-                
+
             case 'iso_date_modified':
                 return date('c', $article->getUpdateDate());
-                
+
             // === AUTHOR & PUBLISHER ===
             case 'author_name':
                 $authorField = $article->getValue('author');
                 if ($authorField) {
                     return $authorField;
                 } else {
-                    $createUser = rex_user::get($article->getCreateUser());
+                    $createUser = rex_user::get((int) $article->getCreateUser());
                     return $createUser ? $createUser->getValue('name') : null;
                 }
-                
+
             // === PRIMÄRES BILD ===
             case 'primary_image':
             case 'featured_image':
@@ -64,11 +75,11 @@ class DataSourceExtended extends DataSource
                 // Primäres Bild aus verschiedenen Quellen
                 $imageField = $parameter ?: 'image'; // Standard: 'image' Feld
                 $imageFile = $article->getValue($imageField);
-                if (!$imageFile) {
+                if (!is_string($imageFile) || '' === $imageFile) {
                     // Fallback: Erstes Bild im Content oder Metainfo
                     $imageFile = $article->getValue('meta_image') ?: $article->getValue('bild');
                 }
-                if ($imageFile) {
+                if (is_string($imageFile) && '' !== $imageFile) {
                     $value = [
                         '@type' => 'ImageObject',
                         'url' => self::getMediaUrl($imageFile)
@@ -85,13 +96,15 @@ class DataSourceExtended extends DataSource
                     return $value;
                 }
                 break;
-                
+
             default:
                 // Fallback zur parent getValue Methode
                 return parent::getValue($source, $article, $additionalData);
         }
+
+        return null;
     }
-    
+
     /**
      * Media-URL generieren (vereinfacht)
      * 
@@ -99,18 +112,20 @@ class DataSourceExtended extends DataSource
      * @param string|null $type Media-Manager Type
      * @return string|null URL oder null
      */
-    protected static function getMediaUrl($filename, $type = null)
+    protected static function getMediaUrl(string $filename, ?string $type = null): ?string
     {
-        if (!$filename) return null;
-        
-        $media = \rex_media::get($filename);
-        if (!$media) return null;
-        
-        if ($type && \rex_addon::get('media_manager')->isAvailable()) {
-            return \rex::getServer() . \rex_url::media($filename, $type);
+        if ('' === $filename) {
+            return null;
         }
-        
-        return \rex::getServer() . \rex_url::media($filename);
+
+        $media = rex_media::get($filename);
+        if (!$media) return null;
+
+        if (null !== $type && '' !== $type && rex_addon::get('media_manager')->isAvailable()) {
+            return rex::getServer() . rex_media_manager::getUrl($type, $filename);
+        }
+
+        return rex::getServer() . rex_url::media($filename);
     }
 }
 

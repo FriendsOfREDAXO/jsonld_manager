@@ -1,5 +1,8 @@
 <?php
 
+use Url\Url;
+use FriendsOfRedaxo\JsonLdManager\Frontend\Renderer;
+
 /**
  * JSON-LD Manager AddOn - Boot
  * 
@@ -27,17 +30,17 @@ if (!rex::isBackend() && rex_addon::get('jsonld_manager')->isAvailable()) {
 
             $jsonLdOutput = '';
             $dynamicJsonLdOutput = '';
-            
+
             // Prüfe ob es eine dynamische URL ist (URL-Addon)
             if (rex_addon::get('url')->isAvailable()) {
                 try {
-                    $urlManager = \Url\Url::resolveCurrent();
-                    
+                    $urlManager = Url::resolveCurrent();
+
                     if ($urlManager) {
                         // Dynamische URL erkannt - JSON-LD für URL-Profil generieren
                         $profileId = $urlManager->getProfileId();
                         $dataId = $urlManager->getDatasetId();
-                        
+
                         if ($profileId && $dataId) {
                             $dynamicJsonLdOutput = generateDynamicJsonLd($profileId, $dataId);
                         }
@@ -46,36 +49,33 @@ if (!rex::isBackend() && rex_addon::get('jsonld_manager')->isAvailable()) {
                     // Fehler beim URL-Parsing ignorieren
                 }
             }
-            
+
             // Standard JSON-LD immer zusätzlich ausgeben
             $jsonLdOutput .= jsonld_render();
             // Dynamisches URL-JSON-LD zusätzlich anhängen (falls vorhanden)
             $jsonLdOutput .= $dynamicJsonLdOutput;
-            
+
             // Legacy-Meta-Daten ausgeben (nach letztem <meta ...> im <head>)
             $legacyMeta = trim(rex_config::get('jsonld_manager', 'legacy_meta_raw', ''));
             if ($legacyMeta !== '') {
-                // Nur ausgeben, wenn Template erlaubt ist (wie bei JSON-LD)
-                if (function_exists('jsonld_is_template_output_allowed') && jsonld_is_template_output_allowed($article)) {
-                    // Suche alle <meta ...> im <head>
-                    $headStart = stripos($content, '<head');
-                    $headEnd = stripos($content, '</head>');
-                    if ($headStart !== false && $headEnd !== false && $headEnd > $headStart) {
-                        $headContent = substr($content, $headStart, $headEnd - $headStart);
-                        // Finde alle <meta ...> Tags
-                        preg_match_all('/<meta[^>]*>/i', $headContent, $metaMatches, PREG_OFFSET_CAPTURE);
-                        if (!empty($metaMatches[0])) {
-                            $lastMeta = end($metaMatches[0]);
-                            $insertPos = $headStart + $lastMeta[1] + strlen($lastMeta[0]);
-                            $content = substr($content, 0, $insertPos) . "\n" . $legacyMeta . "\n" . substr($content, $insertPos);
-                        } else {
-                            // Kein <meta> gefunden, vor </head> einfügen
-                            $content = str_replace('</head>', $legacyMeta . "\n</head>", $content);
-                        }
+                // Suche alle <meta ...> im <head>
+                $headStart = stripos($content, '<head');
+                $headEnd = stripos($content, '</head>');
+                if ($headStart !== false && $headEnd !== false && $headEnd > $headStart) {
+                    $headContent = substr($content, $headStart, $headEnd - $headStart);
+                    // Finde alle <meta ...> Tags
+                    preg_match_all('/<meta[^>]*>/i', $headContent, $metaMatches, PREG_OFFSET_CAPTURE);
+                    if (!empty($metaMatches[0])) {
+                        $lastMeta = end($metaMatches[0]);
+                        $insertPos = $headStart + $lastMeta[1] + strlen($lastMeta[0]);
+                        $content = substr($content, 0, $insertPos) . "\n" . $legacyMeta . "\n" . substr($content, $insertPos);
                     } else {
                         // Kein <head> gefunden, vor </head> einfügen
                         $content = str_replace('</head>', $legacyMeta . "\n</head>", $content);
                     }
+                } else {
+                    // Kein <head> gefunden, vor </head> einfügen
+                    $content = str_replace('</head>', $legacyMeta . "\n</head>", $content);
                 }
             }
             if (!empty($jsonLdOutput)) {
@@ -87,7 +87,7 @@ if (!rex::isBackend() && rex_addon::get('jsonld_manager')->isAvailable()) {
 }
 
 // Extension Point für Cache-Invalidierung bei Artikel-Änderungen
-rex_extension::register('ART_UPDATED', function($ep) {
+rex_extension::register('ART_UPDATED', function($ep): void {
     if (class_exists('\FriendsOfRedaxo\JsonLdManager\Frontend\Renderer')) {
         $articleId = 0;
         $params = $ep->getParams();
@@ -98,7 +98,7 @@ rex_extension::register('ART_UPDATED', function($ep) {
             $articleId = (int) $params['article_id'];
         }
 
-        \FriendsOfRedaxo\JsonLdManager\Frontend\Renderer::clearCache($articleId > 0 ? $articleId : null);
+        Renderer::clearCache($articleId > 0 ? $articleId : null);
     }
 });
 
@@ -109,21 +109,18 @@ if (rex::isBackend()) {
         rex_view::addCssFile(rex_url::addonAssets('jsonld_manager', 'css/jsonld_manager.css'));
         rex_view::addJsFile(rex_url::addonAssets('jsonld_manager', 'js/jsonld_manager.js'));
     }
-    
+
     $hideDynamicUrlsSubpage = static function (): void {
-        $filter = static function ($page) {
-            if (!$page || !method_exists($page, 'getSubpages') || !method_exists($page, 'setSubpages')) {
+        $filter = static function ($page): void {
+            if (!$page instanceof rex_be_page) {
                 return;
             }
 
             $subpages = $page->getSubpages();
-            if (!is_array($subpages)) {
-                return;
-            }
 
             foreach ($subpages as $key => $subpage) {
-                $subpageKey = method_exists($subpage, 'getKey') ? (string) $subpage->getKey() : (string) $key;
-                $subpageFullKey = method_exists($subpage, 'getFullKey') ? (string) $subpage->getFullKey() : '';
+                $subpageKey = (string) $subpage->getKey();
+                $subpageFullKey = (string) $subpage->getFullKey();
                 if ($subpageKey === 'dynamic_urls' || $subpageFullKey === 'jsonld_manager/dynamic_urls') {
                     unset($subpages[$key]);
                 }
@@ -137,11 +134,9 @@ if (rex::isBackend()) {
 
         // Aktuelle Navigation (inkl. Parent) absichern
         $current = rex_be_controller::getCurrentPageObject();
-        if ($current) {
+        if ($current instanceof rex_be_page) {
             $filter($current);
-            if (method_exists($current, 'getParent')) {
-                $filter($current->getParent());
-            }
+            $filter($current->getParent());
         }
     };
 
@@ -158,13 +153,13 @@ if (rex::isBackend()) {
         rex_view::addCssFile(rex_url::addonAssets('jsonld_manager', 'css/hide_dynamic_urls_tab.css'));
     }
 
-    rex_extension::register('PACKAGES_INCLUDED', function() use ($hideDynamicUrlsSubpage, $shouldHideDynamicUrls) {
+    rex_extension::register('PACKAGES_INCLUDED', function() use ($hideDynamicUrlsSubpage, $shouldHideDynamicUrls): void {
         if ($shouldHideDynamicUrls()) {
             $hideDynamicUrlsSubpage();
         }
     });
 
-    rex_extension::register('PAGE_PREPARED', function() use ($hideDynamicUrlsSubpage, $shouldHideDynamicUrls) {
+    rex_extension::register('PAGE_PREPARED', function() use ($hideDynamicUrlsSubpage, $shouldHideDynamicUrls): void {
         if (!$shouldHideDynamicUrls()) {
             return;
         }
@@ -179,7 +174,7 @@ if (rex::isBackend()) {
     });
 }
 
-rex_extension::register('ART_DELETED', function($ep) {
+rex_extension::register('ART_DELETED', function($ep): void {
     if (class_exists('\FriendsOfRedaxo\JsonLdManager\Frontend\Renderer')) {
         $articleId = 0;
         $params = $ep->getParams();
@@ -190,6 +185,6 @@ rex_extension::register('ART_DELETED', function($ep) {
             $articleId = (int) $params['article_id'];
         }
 
-        \FriendsOfRedaxo\JsonLdManager\Frontend\Renderer::clearCache($articleId > 0 ? $articleId : null);
+        Renderer::clearCache($articleId > 0 ? $articleId : null);
     }
 });

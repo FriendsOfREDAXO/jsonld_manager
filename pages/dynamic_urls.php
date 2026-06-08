@@ -30,7 +30,7 @@ if (count($profiles) > 0) {
     
     foreach ($profiles as $profile) {
         // Korrigiere Tabellenname (entferne 1_xxx_ Prefix)
-        $realTableName = str_replace('1_xxx_', '', $profile['table_name']);
+        $realTableName = str_replace('1_xxx_', '', (string) ($profile['table_name'] ?? ''));
         
         // Prüfe ob Mapping existiert
         $mappingExists = rex_sql::factory()->getArray(

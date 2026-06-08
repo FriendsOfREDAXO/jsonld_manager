@@ -5,15 +5,22 @@ namespace FriendsOfRedaxo\JsonLdManager {
 /**
  * Dynamisches JSON-LD für URL-Profile generieren
  * 
- * @param int $profileId ID des URL-Profils
- * @param int $dataId ID des Datensatzes
+ * @param int|string $profileId ID des URL-Profils
+ * @param int|string $dataId ID des Datensatzes
  * @return string JSON-LD Script oder leer
  */
-function generateDynamicJsonLd($profileId, $dataId) {
+function generateDynamicJsonLd(int|string $profileId, int|string $dataId): string {
     try {
+        $profileId = (int) $profileId;
+        $dataId = (int) $dataId;
+
+        if ($profileId <= 0 || $dataId <= 0) {
+            return '';
+        }
+
         // URL-Profil laden
-        $profile = rex_sql::factory()->getArray(
-            'SELECT * FROM ' . rex::getTable('url_generator_profile') . ' WHERE id = ?',
+        $profile = \rex_sql::factory()->getArray(
+            'SELECT * FROM ' . \rex::getTable('url_generator_profile') . ' WHERE id = ?',
             [$profileId]
         );
         
@@ -23,8 +30,8 @@ function generateDynamicJsonLd($profileId, $dataId) {
         $profile = $profile[0];
         
         // Mapping für dieses Profil laden
-        $mapping = rex_sql::factory()->getArray(
-            'SELECT * FROM ' . rex::getTable('jsonld_url_profile_mappings') . ' WHERE url_profile_id = ? AND active = 1',
+        $mapping = \rex_sql::factory()->getArray(
+            'SELECT * FROM ' . \rex::getTable('jsonld_url_profile_mappings') . ' WHERE url_profile_id = ? AND active = 1',
             [$profileId]
         );
         
@@ -35,16 +42,20 @@ function generateDynamicJsonLd($profileId, $dataId) {
         
         // Datensatz aus YForm-Tabelle laden
         $yformTableName = null;
-        if ($profile['table_parameters']) {
+        if (!empty($profile['table_parameters']) && is_string($profile['table_parameters'])) {
             $tableParams = json_decode($profile['table_parameters'], true);
             if ($tableParams && !empty($tableParams['table_name'])) {
-                $yformTableName = $tableParams['table_name'];
+                $tableName = $tableParams['table_name'];
+                if (is_string($tableName)) {
+                    $yformTableName = $tableName;
+                }
             }
         }
         
         // Fallback: Korrigiere Tabellenname (entferne 1_xxx_ Prefix)
         if (!$yformTableName) {
-            $yformTableName = str_replace('1_xxx_', '', $profile['table_name']);
+            $tableName = $profile['table_name'] ?? '';
+            $yformTableName = str_replace('1_xxx_', '', (string) $tableName);
         }
 
         if (!isValidTableName($yformTableName)) {
@@ -52,7 +63,7 @@ function generateDynamicJsonLd($profileId, $dataId) {
         }
         
         // WICHTIG: YForm-Tabellenname bereits mit rex_ Prefix - nicht nochmal durch getTable() hinzufügen!
-        $dataRow = rex_sql::factory()->getArray(
+        $dataRow = \rex_sql::factory()->getArray(
             'SELECT * FROM ' . $yformTableName . ' WHERE id = ?',
             [$dataId]
         );
@@ -63,7 +74,10 @@ function generateDynamicJsonLd($profileId, $dataId) {
         $dataRow = $dataRow[0];
         
         // Field-Mappings anwenden
-        $fieldMappings = json_decode($mapping['field_mappings'], true);
+        $fieldMappings = [];
+        if (isset($mapping['field_mappings']) && is_string($mapping['field_mappings'])) {
+            $fieldMappings = json_decode($mapping['field_mappings'], true) ?: [];
+        }
         if (!$fieldMappings) {
             return '';
         }
@@ -75,7 +89,7 @@ function generateDynamicJsonLd($profileId, $dataId) {
         ];
         
         // Aktuelle URL als @id verwenden
-        $requestPath = (string) rex_server('REQUEST_URI', 'string', '/');
+        $requestPath = (string) \rex_server('REQUEST_URI', 'string', '/');
         $requestPath = '/' . ltrim(parse_url($requestPath, PHP_URL_PATH) ?: '', '/');
         $baseUrl = DomainConfig::getBaseUrl();
         $schema['@id'] = rtrim($baseUrl, '/') . $requestPath;
@@ -98,10 +112,10 @@ function generateDynamicJsonLd($profileId, $dataId) {
                             
                             // Spezial-Behandlung für Bilder
                             if (in_array($schemaProperty, ['image', 'photo']) && !empty($value)) {
-                                if (rex_addon::get('yrewrite')->isAvailable()) {
-                                    $schema[$schemaProperty] = rex_yrewrite::getFullPath('/media/' . $value);
+                                if (\rex_addon::get('yrewrite')->isAvailable() && class_exists('rex_yrewrite')) {
+                                    $schema[$schemaProperty] = \rex_yrewrite::getFullPath('/media/' . $value);
                                 } else {
-                                    $schema[$schemaProperty] = rex_url::frontend('media/' . $value);
+                                    $schema[$schemaProperty] = \rex_url::frontend('media/' . $value);
                                 }
                             } else {
                                 $schema[$schemaProperty] = $value;
@@ -121,10 +135,10 @@ function generateDynamicJsonLd($profileId, $dataId) {
                 
                 // Spezial-Behandlung für Bilder
                 if (in_array($schemaProperty, ['image', 'photo']) && !empty($value)) {
-                    if (rex_addon::get('yrewrite')->isAvailable()) {
-                        $schema[$schemaProperty] = rex_yrewrite::getFullPath('/media/' . $value);
+                    if (\rex_addon::get('yrewrite')->isAvailable() && class_exists('rex_yrewrite')) {
+                        $schema[$schemaProperty] = \rex_yrewrite::getFullPath('/media/' . $value);
                     } else {
-                        $schema[$schemaProperty] = rex_url::frontend('media/' . $value);
+                        $schema[$schemaProperty] = \rex_url::frontend('media/' . $value);
                     }
                 } else {
                     $schema[$schemaProperty] = $value;
@@ -137,21 +151,25 @@ function generateDynamicJsonLd($profileId, $dataId) {
         
         $meta = [
             'article_id' => 0,
-            'clang_id' => (int) rex_clang::getCurrentId(),
+            'clang_id' => (int) \rex_clang::getCurrentId(),
             'branch_id' => null,
             'types' => [$mapping['schema_type']],
             'dynamic_profile_id' => (int) $profileId,
             'dynamic_data_id' => (int) $dataId
         ];
 
-        return JsonLdGenerator::renderPayloadScript(
-            $schema,
-            function_exists('jsonld_is_debug_enabled') && jsonld_is_debug_enabled(),
-            $meta
-        );
+        $payload = JsonLdGenerator::buildPayload([$schema]);
+        $json = JsonLdGenerator::encodePayload($payload);
+
+        $html = '<script type="application/ld+json">' . "\n" . $json . "\n" . '</script>' . "\n";
+        if (function_exists('jsonld_is_debug_enabled') && jsonld_is_debug_enabled() && function_exists('jsonld_render_debug_overlay_script')) {
+            $html .= jsonld_render_debug_overlay_script($payload, $meta);
+        }
+
+        return $html;
         
-    } catch (Exception $e) {
-        if (rex::isDebugMode()) {
+    } catch (\Exception $e) {
+        if (\rex::isDebugMode()) {
             return '<!-- JSON-LD Error: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES) . ' -->' . "\n";
         }
         return '';
@@ -164,7 +182,7 @@ function isValidTableName(?string $tableName): bool {
 }
 
 namespace {
-    function generateDynamicJsonLd($profileId, $dataId) {
+    function generateDynamicJsonLd(int|string $profileId, int|string $dataId): string {
         return \FriendsOfRedaxo\JsonLdManager\generateDynamicJsonLd($profileId, $dataId);
     }
 }

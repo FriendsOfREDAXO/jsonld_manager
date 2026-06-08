@@ -2,24 +2,24 @@
 /**
  * JSON-LD Manager - LocalBusiness Schema (Multi-Branch Support)
  */
-
+use FriendsOfRedaxo\JsonLdManager\LanguageConfig;
 use FriendsOfRedaxo\JsonLdManager\DomainConfig;
 use FriendsOfRedaxo\JsonLdManager\CustomJsonLdHelper;
 
 $func = rex_request('func', 'string', '');
 $lbAction = rex_post('lb_action', 'string', '');
 $branchId = rex_request('branch_id', 'int', 0);
-$activeClangId = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId();
+$activeClangId = LanguageConfig::getActiveClangId();
 $activeDomainId = DomainConfig::getActiveDomainId();
 $csrfToken = rex_csrf_token::factory('jsonld_manager_global_localbusiness');
 $csrfTokenField = $csrfToken->getHiddenField();
 
 // Website-URL basierend auf aktiver Domain ermitteln
-function getWebsiteUrlForDomain($domainId = null): string {
+function getWebsiteUrlForDomain(?int $domainId = null): string {
     if (DomainConfig::isMultiDomain() && $domainId) {
         $activeDomain = DomainConfig::getActiveDomain();
         if ($activeDomain && isset($activeDomain['domain'])) {
-            $domain = $activeDomain['domain'];
+            $domain = (string) $activeDomain['domain'];
             // Prüfen ob Domain bereits Protokoll enthält
             if (strpos($domain, 'http') !== 0) {
                 // Prüfen ob https oder http
@@ -94,7 +94,7 @@ if ($lbAction === 'create_branch') {
                 : [$branchId, $activeClangId];
             
             $deleteSql->setQuery('DELETE FROM ' . rex::getTable('jsonld_localbusiness_branches') . ' ' . $whereClause, $params);
-            $message .= rex_view::success('Standort "' . htmlspecialchars($branchName) . '" wurde gelöscht.');
+            $message .= rex_view::success('Standort "' . htmlspecialchars((string) $branchName) . '" wurde gelöscht.');
             $branchId = 0;
         }
     }
@@ -126,8 +126,11 @@ if ($lbAction === 'create_branch') {
 }
 
 // Migration: Bestehende LocalBusiness Config in ersten Standort übertragen
-function migrateExistingLocalBusinessToFirstBranch($activeClangId) {
+function migrateExistingLocalBusinessToFirstBranch(int $activeClangId): bool {
     $existingConfig = rex_config::get('jsonld_manager', 'localbusiness_schema', []);
+    if (!is_array($existingConfig)) {
+        return false;
+    }
     if (!empty($existingConfig['name'])) {
         $sql = rex_sql::factory();
         $sql->setQuery('SELECT COUNT(*) as count FROM ' . rex::getTable('jsonld_localbusiness_branches') . ' WHERE clang_id = ?', [$activeClangId]);
@@ -154,8 +157,8 @@ migrateExistingLocalBusinessToFirstBranch($activeClangId);
 /**
  * Öffnungszeiten aus be_table-Zeilen in Schema.org-Format umwandeln.
  *
- * @param array $rows
- * @return array
+ * @param array<int, array<string, mixed>> $rows
+ * @return array<int, array<string, mixed>>
  */
 function jsonld_manager_normalize_opening_hours(array $rows): array
 {
@@ -211,7 +214,6 @@ function jsonld_manager_normalize_opening_hours(array $rows): array
             $key = mb_strtolower($dayInput);
             $days[] = $dayMap[$key] ?? $dayInput;
         }
-        $days = array_values(array_filter($days));
         if (count($days) === 0) {
             continue;
         }
@@ -235,14 +237,14 @@ function jsonld_manager_normalize_opening_hours(array $rows): array
  * - opens{row}{col}
  * - closes{row}{col}
  *
- * @param array $postData
- * @return array
+ * @param array<string, mixed> $postData
+ * @return array<int, array{day_of_week: string, opens: string, closes: string}>
  */
 function jsonld_manager_extract_opening_hours_rows_from_post(array $postData): array
 {
     $flat = [];
 
-    $walker = static function ($value, $key) use (&$flat) {
+    $walker = static function ($value, $key) use (&$flat): void {
         if (is_scalar($value) || $value === null) {
             $flat[(string) $key] = (string) $value;
         }
@@ -282,8 +284,8 @@ function jsonld_manager_extract_opening_hours_rows_from_post(array $postData): a
  * Erwartet Daten unter:
  * $_POST['FORM']['jsonld_lb_opening_hours'][<fieldId>][<rowIndex>][<colIndex>]
  *
- * @param array $postData
- * @return array
+ * @param array<string, mixed> $postData
+ * @return array<int, array{day_of_week: string, opens: string, closes: string}>
  */
 function jsonld_manager_extract_opening_hours_rows_from_yform_post(array $postData): array
 {
@@ -349,14 +351,14 @@ function jsonld_manager_extract_opening_hours_rows_from_yform_post(array $postDa
 /**
  * Fallback: rekursiv mögliche Öffnungszeiten-Zeilen aus beliebiger FORM-Struktur extrahieren.
  *
- * @param array $postData
- * @return array
+ * @param array<string, mixed> $postData
+ * @return array<int, array{day_of_week: string, opens: string, closes: string}>
  */
 function jsonld_manager_extract_opening_hours_rows_from_form_deep(array $postData): array
 {
     $rows = [];
 
-    $addRow = static function (array $row) use (&$rows) {
+    $addRow = static function (array $row) use (&$rows): void {
         $candidate = [
             'day_of_week' => trim((string) ($row['day_of_week'] ?? '')),
             'opens' => trim((string) ($row['opens'] ?? '')),
@@ -371,7 +373,7 @@ function jsonld_manager_extract_opening_hours_rows_from_form_deep(array $postDat
     };
 
     $walker = null;
-    $walker = static function ($node) use (&$walker, $addRow) {
+    $walker = static function ($node) use (&$walker, $addRow): void {
         if (!is_array($node)) {
             return;
         }
@@ -407,7 +409,11 @@ function jsonld_manager_extract_opening_hours_rows_from_form_deep(array $postDat
     // Duplikate entfernen
     $unique = [];
     foreach ($rows as $row) {
-        $key = md5(json_encode($row, JSON_UNESCAPED_UNICODE));
+        $encodedRow = json_encode($row, JSON_UNESCAPED_UNICODE);
+        if (!is_string($encodedRow)) {
+            continue;
+        }
+        $key = md5($encodedRow);
         $unique[$key] = $row;
     }
 
@@ -418,7 +424,7 @@ function jsonld_manager_extract_opening_hours_rows_from_form_deep(array $postDat
  * Komma- und/oder zeilengetrennte Eingabe in eindeutiges Array umwandeln.
  *
  * @param string $input
- * @return array
+ * @return array<int, string>
  */
 function jsonld_manager_parse_list_input(string $input): array
 {
@@ -430,7 +436,7 @@ function jsonld_manager_parse_list_input(string $input): array
 /**
  * be_table-Konfiguration für Öffnungszeiten erzeugen.
  *
- * @param array $rows
+ * @param array<int, array{day_of_week: string, opens: string, closes: string}> $rows
  * @param bool $withFixdata
  * @return rex_yform
  */
@@ -511,8 +517,12 @@ if ($lbAction === 'save' && $branchId <= 0) {
         'availableLanguage' => $contactPointLanguage,
         'areaServed' => $contactPointAreaServed,
     ];
-    $contactPoint = array_filter($contactPoint, static function ($value) {
-        return trim((string) $value) !== '';
+    $contactPoint = array_filter($contactPoint, static function ($value): bool {
+        if (is_array($value)) {
+            return true;
+        }
+
+        return trim($value) !== '';
     });
 
     $customRaw = rex_post('lb_custom_jsonld_raw', 'string', '');
@@ -526,7 +536,8 @@ if ($lbAction === 'save' && $branchId <= 0) {
     $branchSql->setQuery('SELECT config FROM ' . rex::getTable('jsonld_localbusiness_branches') . ' WHERE id = ? AND clang_id = ?', [$branchId, $activeClangId]);
     $configBeforeSave = [];
     if ($branchSql->getRows() > 0) {
-        $configBeforeSave = json_decode($branchSql->getValue('config'), true) ?: [];
+        $configRaw = $branchSql->getValue('config');
+        $configBeforeSave = is_string($configRaw) ? (json_decode($configRaw, true) ?: []) : [];
     }
     
     $openingHoursSpecBeforeSave = $configBeforeSave['openingHoursSpecification'] ?? [];
@@ -606,8 +617,8 @@ if ($lbAction === 'save' && $branchId <= 0) {
         ],
         'openingHoursSpecification' => $normalizedOpeningHours,
         'coordinates' => $coordinates,
-        'custom_jsonld_raw' => $customParse['raw'] ?? '',
-        'custom_jsonld' => $customParse['data'] ?? [],
+        'custom_jsonld_raw' => $customParse['raw'],
+        'custom_jsonld' => $customParse['data'],
     ];
 
     if (empty($customParse['errors'])) {
@@ -664,7 +675,8 @@ if ($branchId > 0) {
     foreach ($branches as $branch) {
         if ($branch['id'] == $branchId) {
             $selectedBranch = $branch;
-            $localBusinessConfig = json_decode($branch['config'], true) ?: [];
+            $branchConfigRaw = $branch['config'] ?? null;
+            $localBusinessConfig = is_string($branchConfigRaw) ? (json_decode($branchConfigRaw, true) ?: []) : [];
             break;
         }
     }
@@ -714,7 +726,7 @@ echo $message;
 
 ob_start();
 
-echo \FriendsOfRedaxo\JsonLdManager\LanguageConfig::renderClangTabs($activeClangId);
+echo LanguageConfig::renderClangTabs($activeClangId);
 
 $baseUrlJs = htmlspecialchars(getWebsiteUrlForDomain($activeDomainId), ENT_QUOTES);
 
@@ -1380,14 +1392,15 @@ if (!empty($branches)) {
     echo '<tbody>';
     
     foreach ($branches as $branch) {
-        $config = json_decode($branch['config'], true) ?: [];
+        $branchConfigRaw = $branch['config'] ?? null;
+        $config = is_string($branchConfigRaw) ? (json_decode($branchConfigRaw, true) ?: []) : [];
         $isSelected = ($branch['id'] == $branchId);
         
         echo '<tr>';
         if ($isSelected) {
-            echo '<td><strong style="font-size: 17px !important;">' . htmlspecialchars($branch['branch_name']) . '</strong></td>';
+            echo '<td><strong style="font-size: 17px !important;">' . htmlspecialchars((string) ($branch['branch_name'] ?? '')) . '</strong></td>';
         } else {
-            echo '<td>' . htmlspecialchars($branch['branch_name']) . '</td>';
+            echo '<td>' . htmlspecialchars((string) ($branch['branch_name'] ?? '')) . '</td>';
         }
         echo '<td style="text-align: right;">';
         

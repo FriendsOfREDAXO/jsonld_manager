@@ -2,7 +2,7 @@
 /**
  * JSON-LD Manager - Organization Schema
  */
-
+use FriendsOfRedaxo\JsonLdManager\LanguageConfig;
 use FriendsOfRedaxo\JsonLdManager\DomainConfig;
 use FriendsOfRedaxo\JsonLdManager\CustomJsonLdHelper;
 
@@ -10,7 +10,7 @@ use FriendsOfRedaxo\JsonLdManager\CustomJsonLdHelper;
  * Liste aus Eingabefeld parsen (Zeilen oder kommagetrennt).
  *
  * @param string $input
- * @return array
+ * @return array<int, string>
  */
 function jsonld_manager_parse_list_input(string $input): array
 {
@@ -21,17 +21,17 @@ function jsonld_manager_parse_list_input(string $input): array
 
 $organizationAction = rex_post('organization_action', 'string', '');
 $addon = rex_addon::get('jsonld_manager');
-$activeClangId = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId();
+$activeClangId = LanguageConfig::getActiveClangId();
 $activeDomainId = DomainConfig::getActiveDomainId();
 $csrfToken = rex_csrf_token::factory('jsonld_manager_schemas');
 $csrfTokenField = $csrfToken->getHiddenField();
 
 // Website-URL basierend auf aktiver Domain ermitteln
-function getWebsiteUrlForDomain($domainId = null): string {
+function getWebsiteUrlForDomain(?int $domainId = null): string {
     if (DomainConfig::isMultiDomain() && $domainId) {
         $activeDomain = DomainConfig::getActiveDomain();
         if ($activeDomain && isset($activeDomain['domain'])) {
-            $domain = $activeDomain['domain'];
+            $domain = (string) $activeDomain['domain'];
             // Prüfen ob Domain bereits Protokoll enthält
             if (strpos($domain, 'http') !== 0) {
                 // Prüfen ob https oder http
@@ -82,7 +82,7 @@ if ($organizationAction === 'save') {
         $configKey = 'organization_schema_domain_' . $activeDomainId . '_clang_' . $activeClangId;
         $addon->setConfig($configKey, $config);
     } else {
-        \FriendsOfRedaxo\JsonLdManager\LanguageConfig::setLocalizedConfig($addon, 'organization_schema', $activeClangId, $config);
+        LanguageConfig::setLocalizedConfig($addon, 'organization_schema', $activeClangId, $config);
     }
     
     echo rex_view::success('Organization Schema wurde gespeichert.');
@@ -99,15 +99,15 @@ if (DomainConfig::isMultiDomain()) {
     $organizationConfig = $addon->getConfig($configKey, []);
     // Fallback zu sprachspezifischer Konfiguration wenn domain-spezifische nicht existiert
     if (empty($organizationConfig)) {
-        $organizationConfig = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getLocalizedConfig($addon, 'organization_schema', $activeClangId, []);
+        $organizationConfig = LanguageConfig::getLocalizedConfig($addon, 'organization_schema', $activeClangId, []);
     }
 } else {
-    $organizationConfig = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getLocalizedConfig($addon, 'organization_schema', $activeClangId, []);
+    $organizationConfig = LanguageConfig::getLocalizedConfig($addon, 'organization_schema', $activeClangId, []);
 }
 
 ob_start();
 
-echo \FriendsOfRedaxo\JsonLdManager\LanguageConfig::renderClangTabs($activeClangId);
+echo LanguageConfig::renderClangTabs($activeClangId);
 
 echo '<style>
 .jsonld-preview-col { 

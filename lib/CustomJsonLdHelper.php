@@ -2,13 +2,16 @@
 
 namespace FriendsOfRedaxo\JsonLdManager;
 
+use JsonException;
+use RuntimeException;
+
 class CustomJsonLdHelper
 {
     private const MAX_RAW_LENGTH = 30000;
     private const MAX_DEPTH = 20;
 
     /**
-     * @return array{raw:string,data:array,errors:array,warnings:array}
+     * @return array{raw:string,data:array<string, mixed>,errors:array<int, string>,warnings:array<int, string>}
      */
     public static function parseCustomObject(string $rawJson): array
     {
@@ -33,7 +36,7 @@ class CustomJsonLdHelper
 
         try {
             $decoded = json_decode($rawJson, true, 512, JSON_THROW_ON_ERROR);
-        } catch (\JsonException $e) {
+        } catch (JsonException $e) {
             return [
                 'raw' => $rawJson,
                 'data' => [],
@@ -54,7 +57,7 @@ class CustomJsonLdHelper
         $warnings = [];
         try {
             $sanitized = self::sanitizeObject($decoded, 0, $warnings);
-        } catch (\RuntimeException $e) {
+        } catch (RuntimeException $e) {
             return [
                 'raw' => $rawJson,
                 'data' => [],
@@ -114,7 +117,7 @@ class CustomJsonLdHelper
     private static function sanitizeObject(array $object, int $depth, array &$warnings): array
     {
         if ($depth > self::MAX_DEPTH) {
-            throw new \RuntimeException('Custom-JSON ist zu tief verschachtelt.');
+            throw new RuntimeException('Custom-JSON ist zu tief verschachtelt.');
         }
 
         $clean = [];
@@ -138,12 +141,12 @@ class CustomJsonLdHelper
     /**
      * @param mixed $value
      * @param array<int,string> $warnings
-     * @return mixed
+     * @return array<string, mixed>|array<int, mixed>|string|int|float|bool|null
      */
-    private static function sanitizeValue($value, int $depth, array &$warnings)
+    private static function sanitizeValue($value, int $depth, array &$warnings): array|string|int|float|bool|null
     {
         if ($depth > self::MAX_DEPTH) {
-            throw new \RuntimeException('Custom-JSON ist zu tief verschachtelt.');
+            throw new RuntimeException('Custom-JSON ist zu tief verschachtelt.');
         }
 
         if (is_array($value)) {

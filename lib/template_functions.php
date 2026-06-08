@@ -1,32 +1,37 @@
 <?php
+    use FriendsOfRedaxo\JsonLdManager\JsonLdGenerator;
+    use FriendsOfRedaxo\JsonLdManager\DomainConfig;
+
     /**
      * Liefert den Branch-Key für einen Artikel (inkl. Multi-Domain-Unterstützung)
      */
-    function jsonld_manager_article_branch_key($articleId, $clangId = null) {
-        return \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::getArticleBranchKey($articleId, $clangId);
+    function jsonld_manager_article_branch_key(int $articleId, mixed $clangId = null): string {
+        return JsonLdGenerator::getArticleBranchKey($articleId, $clangId);
     }
 
     /**
      * Normalisiert Branch-IDs aus allen möglichen Formaten (Array, JSON, Komma-getrennt, int)
      */
-    function jsonld_manager_normalize_branch_ids($value) {
-        return \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::normalizeBranchIds($value);
+    /** @return array<int, int> */
+    function jsonld_manager_normalize_branch_ids(mixed $value): array {
+        return JsonLdGenerator::normalizeBranchIds($value);
     }
 
     /**
      * Liefert den Config-Key zum Deaktivieren von JSON-LD pro Artikel
      * (inkl. Multi-Domain-Unterstützung)
      */
-    function jsonld_manager_disable_json_key($articleId, $clangId = null) {
-        return \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::getDisableJsonKey($articleId, $clangId);
+    function jsonld_manager_disable_json_key(int $articleId, mixed $clangId = null): string {
+        return JsonLdGenerator::getDisableJsonKey($articleId, $clangId);
     }
 
     /**
      * Lädt die für einen Artikel gespeicherten LocalBusiness-Branch-IDs
      * und normalisiert das Ergebnis auf ein Integer-Array.
      */
-    function jsonld_manager_get_article_branch_ids($articleId, $clangId = null) {
-        return \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::getArticleBranchIds($articleId, $clangId);
+    /** @return array<int, int> */
+    function jsonld_manager_get_article_branch_ids(int $articleId, mixed $clangId = null): array {
+        return JsonLdGenerator::getArticleBranchIds($articleId, $clangId);
     }
 
 
@@ -48,7 +53,7 @@ if (!function_exists('jsonld_render')) {
          */
         function jsonld_prune_empty_values($value)
         {
-            return \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::pruneEmptyValues($value);
+            return JsonLdGenerator::pruneEmptyValues($value);
         }
     }
 
@@ -56,12 +61,12 @@ if (!function_exists('jsonld_render')) {
         /**
          * Einheitliches JSON-LD Payload bauen.
          *
-         * @param array $jsonLdData
-         * @return array
+         * @param array<int, array<string, mixed>> $jsonLdData
+         * @return array<string, mixed>
          */
-        function jsonld_normalize_output_payload(array $jsonLdData)
+        function jsonld_normalize_output_payload(array $jsonLdData): array
         {
-            return \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::buildPayload($jsonLdData);
+            return JsonLdGenerator::buildPayload($jsonLdData);
         }
     }
 
@@ -72,9 +77,9 @@ if (!function_exists('jsonld_render')) {
              *
              * @return bool
              */
-            function jsonld_is_backend_user_logged_in()
+            function jsonld_is_backend_user_logged_in(): bool
             {
-                return class_exists('rex_backend_login') && \rex_backend_login::hasSession();
+                return class_exists('rex_backend_login') && rex_backend_login::hasSession();
             }
         }
 
@@ -91,26 +96,26 @@ if (!function_exists('jsonld_render')) {
             }
 
             $addon = rex_addon::get('jsonld_manager');
-            
+
             // Domain-spezifische Konfiguration prüfen (wenn Multi-Domain)
             if (class_exists('\FriendsOfRedaxo\JsonLdManager\DomainConfig')) {
-                if (\FriendsOfRedaxo\JsonLdManager\DomainConfig::isMultiDomain()) {
-                    $activeDomainId = \FriendsOfRedaxo\JsonLdManager\DomainConfig::getActiveDomainId();
+                if (DomainConfig::isMultiDomain()) {
+                    $activeDomainId = DomainConfig::getActiveDomainId();
                     $configKey = 'global_settings_domain_' . $activeDomainId;
                     $domainConfig = $addon->getConfig($configKey, []);
-                    
+
                     if (isset($domainConfig['settings']) && array_key_exists('debug_mode', $domainConfig['settings'])) {
                         return (bool) $domainConfig['settings']['debug_mode'];
                     }
                 }
             }
-            
+
             // Fallback zu globaler Konfiguration
             $global = $addon->getConfig('global_settings', []);
             if (isset($global['settings']) && array_key_exists('debug_mode', $global['settings'])) {
                 return (bool) $global['settings']['debug_mode'];
             }
-            
+
             return (bool) $addon->getConfig('settings.debug_mode', false);
         }
     }
@@ -123,14 +128,14 @@ if (!function_exists('jsonld_render')) {
          * @param rex_article $article
          * @return bool
          */
-        function jsonld_is_template_output_allowed(\rex_article $article): bool
+        function jsonld_is_template_output_allowed(rex_article $article): bool
         {
             $addon = rex_addon::get('jsonld_manager');
             $activeDomainId = 1;
 
             if (class_exists('\FriendsOfRedaxo\JsonLdManager\DomainConfig')) {
-                $activeDomainId = (int) \FriendsOfRedaxo\JsonLdManager\DomainConfig::getActiveDomainId();
-                $configKey = \FriendsOfRedaxo\JsonLdManager\DomainConfig::isMultiDomain()
+                $activeDomainId = (int) DomainConfig::getActiveDomainId();
+                $configKey = DomainConfig::isMultiDomain()
                     ? 'global_settings_domain_' . $activeDomainId
                     : 'global_settings';
             } else {
@@ -138,14 +143,14 @@ if (!function_exists('jsonld_render')) {
             }
 
             $globalConfig = (array) rex_config::get('jsonld_manager', $configKey, []);
-            if (empty($globalConfig) && class_exists('\FriendsOfRedaxo\JsonLdManager\DomainConfig') && \FriendsOfRedaxo\JsonLdManager\DomainConfig::isMultiDomain()) {
+            if (empty($globalConfig) && class_exists('\FriendsOfRedaxo\JsonLdManager\DomainConfig') && DomainConfig::isMultiDomain()) {
                 $globalConfig = (array) rex_config::get('jsonld_manager', 'global_settings', []);
             }
 
             $settings = (array) ($globalConfig['settings'] ?? []);
             $templates = (array) ($globalConfig['templates'] ?? []);
             $autoOutput = (bool) ($settings['auto_output'] ?? true);
-            $enabledIds = array_values(array_filter(array_map('intval', (array) ($templates['enabled_ids'] ?? [])), static function ($id) {
+            $enabledIds = array_values(array_filter(array_map('intval', (array) ($templates['enabled_ids'] ?? [])), static function (int $id): bool {
                 return $id > 0;
             }));
 
@@ -161,11 +166,11 @@ if (!function_exists('jsonld_render')) {
         /**
          * Rendert ein benutzerfreundliches Debug-Overlay als JS (für Ausgabe im <head> geeignet).
          *
-         * @param array $payload
-         * @param array $meta
+         * @param mixed $payload
+         * @param mixed $meta
          * @return string
          */
-        function jsonld_render_debug_overlay_script($payload, $meta = [])
+        function jsonld_render_debug_overlay_script(mixed $payload, mixed $meta = []): string
         {
             // Defensive: null oder nicht-Array abfangen
             if (!is_array($payload)) {
@@ -181,7 +186,7 @@ if (!function_exists('jsonld_render')) {
                 'name' => 'Keine JSON-LD Daten vorhanden',
                 'description' => 'Bitte Konfiguration im Backend prüfen.'
             ];
-            if (empty($payload) || (is_array($payload) && count($payload) === 0)) {
+            if (empty($payload)) {
                 $payload = $payloadFallback;
             }
             $payloadJson = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -267,11 +272,11 @@ if (!function_exists('jsonld_render')) {
     /**
      * JSON-LD für aktuelle Seite ausgeben
      * 
-     * @param string|null $schemaType Spezifischer Schema-Type
-     * @param array $additionalData Zusätzliche Daten
+    * @param string|null $schemaType Spezifischer Schema-Type
+    * @param array<string, mixed> $additionalData Zusätzliche Daten
      * @return string JSON-LD Script Tag
      */
-    function jsonld_render($schemaType = null, $additionalData = [])
+    function jsonld_render(?string $schemaType = null, array $additionalData = []): string
     {
         try {
             $article = rex_article::getCurrent();
@@ -279,18 +284,18 @@ if (!function_exists('jsonld_render')) {
                 return '';
             }
 
-            return \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::renderArticleScript(
+            return JsonLdGenerator::renderArticleScript(
                 (int) $article->getId(),
                 null,
                 jsonld_is_debug_enabled(),
                 (int) $article->getClangId()
             );
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             if (rex::isDebugMode()) {
                 return '<!-- JSON-LD Error: ' . htmlspecialchars($e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine()) . ' -->';
             }
         }
-        
+
         return '';
     }
 }

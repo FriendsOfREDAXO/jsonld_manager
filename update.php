@@ -189,31 +189,46 @@ try {
         }
 
         foreach ($definitions as $definition) {
-            if (isset($definition['drop']) && $definition['drop'] !== $definition['name'] ?? null && $indexExists($tableName, $definition['drop']) && !isset($definition['sql'])) {
+            $hasDrop = array_key_exists('drop', $definition);
+            $hasName = array_key_exists('name', $definition);
+            $hasSql = array_key_exists('sql', $definition);
+
+            $dropName = $hasDrop ? (string) $definition['drop'] : null;
+            $indexName = $hasName ? (string) $definition['name'] : null;
+            $indexSql = $hasSql ? (string) $definition['sql'] : null;
+
+            if ($dropName !== null && $indexName === null && $indexSql === null) {
+                if (!$indexExists($tableName, $dropName)) {
+                    continue;
+                }
                 try {
-                    $sql->setQuery("ALTER TABLE `$tableName` DROP KEY `{$definition['drop']}`");
-                } catch (\rex_sql_exception $e) {
+                    $sql->setQuery("ALTER TABLE `$tableName` DROP KEY `{$dropName}`");
+                } catch (rex_sql_exception $e) {
                     // ignore
                 }
                 continue;
             }
 
-            if (isset($definition['drop']) && $indexExists($tableName, $definition['drop']) && isset($definition['name']) && !$indexExists($tableName, $definition['name'])) {
+            if ($dropName !== null && $indexName !== null && $indexSql === null) {
+                continue;
+            }
+
+            if ($dropName !== null && $indexName !== null && $indexExists($tableName, $dropName) && !$indexExists($tableName, $indexName)) {
                 try {
-                    $sql->setQuery("ALTER TABLE `$tableName` DROP KEY `{$definition['drop']}`");
-                } catch (\rex_sql_exception $e) {
+                    $sql->setQuery("ALTER TABLE `$tableName` DROP KEY `{$dropName}`");
+                } catch (rex_sql_exception $e) {
                     // ignore
                 }
             }
 
-            if (isset($definition['name']) && isset($definition['sql']) && !$indexExists($tableName, $definition['name'])) {
-                $sql->setQuery("ALTER TABLE `$tableName` {$definition['sql']}");
+            if ($indexName !== null && $indexSql !== null && !$indexExists($tableName, $indexName)) {
+                $sql->setQuery("ALTER TABLE `$tableName` {$indexSql}");
             }
         }
     }
 
     $updates[] = '✅ Tabellenstruktur und Indizes aktualisiert';
-} catch (\rex_sql_exception $e) {
+} catch (rex_sql_exception $e) {
     echo rex_view::error('JSON-LD Manager Update abgebrochen: ' . htmlspecialchars($e->getMessage()));
     return;
 }
@@ -287,7 +302,7 @@ $normalizeLocalBusinessContactPoint = static function (array $localBusinessConfi
     if (!empty($contactPoint)) {
         if (isset($contactPoint['availableLanguage']) && is_string($contactPoint['availableLanguage'])) {
             $languageParts = preg_split('/[\r\n,]+/', $contactPoint['availableLanguage']) ?: [];
-            $languageParts = array_values(array_filter(array_map('trim', $languageParts), static function ($item) {
+            $languageParts = array_values(array_filter(array_map('trim', $languageParts), static function (string $item): bool {
                 return $item !== '';
             }));
 
@@ -302,7 +317,7 @@ $normalizeLocalBusinessContactPoint = static function (array $localBusinessConfi
 
         if (isset($contactPoint['areaServed']) && is_string($contactPoint['areaServed'])) {
             $areaServedParts = preg_split('/[\r\n,]+/', $contactPoint['areaServed']) ?: [];
-            $areaServedParts = array_values(array_filter(array_map('trim', $areaServedParts), static function ($item) {
+            $areaServedParts = array_values(array_filter(array_map('trim', $areaServedParts), static function (string $item): bool {
                 return $item !== '';
             }));
 
@@ -315,7 +330,7 @@ $normalizeLocalBusinessContactPoint = static function (array $localBusinessConfi
             }
         }
 
-        $contactPoint = array_filter($contactPoint, static function ($value) {
+        $contactPoint = array_filter($contactPoint, static function ($value): bool {
             if (is_array($value)) {
                 return count($value) > 0;
             }
@@ -374,7 +389,7 @@ try {
             $updates[] = '✅ LocalBusiness ContactPoint-Migration für Standorte durchgeführt (' . $migratedBranches . ')';
         }
     }
-} catch (\rex_sql_exception $e) {
+} catch (rex_sql_exception $e) {
     // Weiches Verhalten: AddOn-Update soll bei optionaler Config-Migration nicht abbrechen
 }
 
@@ -402,7 +417,7 @@ try {
         'INSERT IGNORE INTO `' . rex::getTable('jsonld_schemas') . '` (`id`, `article_id`, `clang_id`, `schema_type`, `active`, `priority`, `config`, `created`, `modified`) VALUES (1, 0, 0, "default_webpage", 1, 999, ?, NOW(), NOW())',
         [json_encode($defaultSchemaConfig)]
     );
-} catch (\rex_sql_exception $e) {
+} catch (rex_sql_exception $e) {
     // ignore, table is already present and data should stay intact
 }
 
