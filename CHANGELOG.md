@@ -3,6 +3,16 @@
 
 Dieses Changelog wird ab Version `1.0.0` neu geführt.
 
+## v1.0.0.beta.18 (08. Juni 2026)
+
+### Fixed
+- Frontend-Fehler für nicht eingeloggte Besucher behoben: `Session not started, call rex_login::startSession() before!`.
+- `DomainConfig::getActiveDomainId()` greift im Frontend nicht mehr auf `rex_session()` / `rex_set_session()` zu.
+- Aktive Domain wird im Frontend über `rex_yrewrite::getCurrentDomain()` ermittelt.
+
+### Improved
+- `domainExists()` in `DomainConfig` prüft YRewrite-Verfügbarkeit und fängt SQL-Fehler robust ab.
+
 ## 2026-06-02
 
 ### Added

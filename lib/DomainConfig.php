@@ -33,21 +33,38 @@ class DomainConfig
         // Prüfe URL-Parameter
         $requested = \rex_request('domain_id', 'int', 0);
         if ($requested > 0 && self::domainExists($requested)) {
-            \rex_set_session(self::SESSION_KEY, $requested);
+            if (\rex::isBackend()) {
+                \rex_set_session(self::SESSION_KEY, $requested);
+            }
             return $requested;
         }
 
-        // Prüfe Session
-        $sessionDomainId = (int) \rex_session(self::SESSION_KEY, 'int', 0);
-        if ($sessionDomainId > 0 && self::domainExists($sessionDomainId)) {
-            return $sessionDomainId;
+        // Frontend: ohne Session arbeiten (verhindert Fehler bei nicht eingeloggten Besuchern)
+        if (!\rex::isBackend()) {
+            if (\rex_addon::get('yrewrite')->isAvailable() && class_exists('rex_yrewrite')) {
+                $currentDomain = \rex_yrewrite::getCurrentDomain();
+                if ($currentDomain && method_exists($currentDomain, 'getId')) {
+                    $currentDomainId = (int) $currentDomain->getId();
+                    if ($currentDomainId > 0) {
+                        return $currentDomainId;
+                    }
+                }
+            }
+        } else {
+            // Backend: Session-Auswahl berücksichtigen
+            $sessionDomainId = (int) \rex_session(self::SESSION_KEY, 'int', 0);
+            if ($sessionDomainId > 0 && self::domainExists($sessionDomainId)) {
+                return $sessionDomainId;
+            }
         }
 
         // Fallback zur ersten Domain
         $domains = self::getDomains();
         if (!empty($domains)) {
             $fallbackDomainId = (int) $domains[0]['id'];
-            \rex_set_session(self::SESSION_KEY, $fallbackDomainId);
+            if (\rex::isBackend()) {
+                \rex_set_session(self::SESSION_KEY, $fallbackDomainId);
+            }
             return $fallbackDomainId;
         }
 
@@ -70,9 +87,17 @@ class DomainConfig
 
     public static function domainExists(int $domainId): bool
     {
+        if (!\rex_addon::get('yrewrite')->isAvailable()) {
+            return false;
+        }
+
         $sql = \rex_sql::factory();
-        $sql->setQuery('SELECT id FROM ' . \rex::getTable('yrewrite_domain') . ' WHERE id = ?', [$domainId]);
-        return $sql->getRows() > 0;
+        try {
+            $sql->setQuery('SELECT id FROM ' . \rex::getTable('yrewrite_domain') . ' WHERE id = ?', [$domainId]);
+            return $sql->getRows() > 0;
+        } catch (\rex_sql_exception $e) {
+            return false;
+        }
     }
 
     public static function renderDomainTabs(int $activeDomainId): string
