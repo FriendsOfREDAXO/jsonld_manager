@@ -37,7 +37,7 @@ function jsonld_manager_remap_branch_ids($value, array $branchIdMap)
     };
 
     if (is_array($value)) {
-        return array_values(array_filter(array_map($mapSingleId, $value), static function ($id) {
+        return array_values(array_filter(array_map($mapSingleId, $value), static function (int $id): bool {
             return (int) $id > 0;
         }));
     }
@@ -54,13 +54,13 @@ function jsonld_manager_remap_branch_ids($value, array $branchIdMap)
 
         $decoded = json_decode($trimmed, true);
         if (is_array($decoded)) {
-            return array_values(array_filter(array_map($mapSingleId, $decoded), static function ($id) {
+            return array_values(array_filter(array_map($mapSingleId, $decoded), static function (int $id): bool {
                 return (int) $id > 0;
             }));
         }
 
         if (str_contains($trimmed, ',')) {
-            $mapped = array_values(array_filter(array_map($mapSingleId, explode(',', $trimmed)), static function ($id) {
+            $mapped = array_values(array_filter(array_map($mapSingleId, explode(',', $trimmed)), static function ($id): bool {
                 return (int) $id > 0;
             }));
             return implode(',', $mapped);
@@ -216,7 +216,7 @@ if ($func === 'update_settings') {
     
     // Template-Auswahl für JSON-LD
     $templateIds = rex_post('template_ids', 'array', []);
-    $selectedTemplateIds = array_values(array_unique(array_filter(array_map('intval', $templateIds), function ($id) {
+    $selectedTemplateIds = array_values(array_unique(array_filter(array_map('intval', $templateIds), function (int $id): bool {
         return $id > 0;
     })));
     

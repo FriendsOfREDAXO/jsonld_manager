@@ -2,6 +2,16 @@
 
 namespace FriendsOfRedaxo\JsonLdManager;
 
+use rex_article;
+use Exception;
+use rex;
+use RuntimeException;
+use rex_config;
+use rex_sql;
+use rex_clang;
+use rex_addon;
+use rex_url;
+use rex_yform_manager_dataset;
 use Url\Url;
 
 /**
@@ -19,13 +29,13 @@ class JsonLdGenerator
      * Baut die komplette JSON-LD-Ausgabe fuer einen Artikel.
      * Diese Methode ist die gemeinsame Quelle fuer Backend-Vorschau, AJAX und Frontend.
      *
-     * @param int $articleId
-     * @param int|array|null $branchIds Override fuer LocalBusiness-Branch-IDs; null nutzt gespeicherte Auswahl/Fallback.
+    * @param int $articleId
+    * @param int|array<int, int>|string|null $branchIds Override fuer LocalBusiness-Branch-IDs; null nutzt gespeicherte Auswahl/Fallback.
      * @param bool $isDebugMode
      * @param int|null $clangId
-     * @return array{disabled: bool, custom: bool, items: array, payload: ?array, json: string, branch_ids: array, meta: array, error: ?string}
+    * @return array{disabled: bool, custom: bool, items: array<int, array<string, mixed>>, payload: array<mixed, mixed>|null, json: string, branch_ids: array<int, int>, meta: array<string, mixed>, error: string|null}
      */
-    public static function getArticleOutput($articleId, $branchIds = null, bool $isDebugMode = false, $clangId = null): array
+    public static function getArticleOutput(int $articleId, int|array|string|null $branchIds = null, bool $isDebugMode = false, mixed $clangId = null): array
     {
         $articleId = (int) $articleId;
         $effectiveClangId = self::normalizeClangId($clangId);
@@ -45,7 +55,7 @@ class JsonLdGenerator
             'error' => null,
         ];
 
-        if ($articleId <= 0 || !\rex_article::get($articleId, $effectiveClangId)) {
+        if ($articleId <= 0 || !rex_article::get($articleId, $effectiveClangId)) {
             return $output;
         }
 
@@ -69,7 +79,7 @@ class JsonLdGenerator
                 $output['payload'] = $payload;
                 $output['json'] = self::encodePayload($payload);
                 $output['meta'] = self::buildDebugMeta($articleId, $effectiveClangId, $resolvedBranchIds, [], $payload, 'custom');
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $output['custom'] = true;
                 $output['error'] = $e->getMessage();
             }
@@ -100,7 +110,7 @@ class JsonLdGenerator
                 $meta['branch_names'] = $branchNames;
             }
             $output['meta'] = $meta;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $output['error'] = $e->getMessage();
         }
 
@@ -111,17 +121,17 @@ class JsonLdGenerator
      * Rendert die Artikel-Ausgabe als application/ld+json Script-Tag.
      *
      * @param int $articleId
-     * @param int|array|null $branchIds
+    * @param int|array<int, int>|string|null $branchIds
      * @param bool $includeDebugOverlay
      * @param int|null $clangId
      */
-    public static function renderArticleScript($articleId, $branchIds = null, bool $includeDebugOverlay = false, $clangId = null): string
+    public static function renderArticleScript(int $articleId, int|array|string|null $branchIds = null, bool $includeDebugOverlay = false, mixed $clangId = null): string
     {
         $output = self::getArticleOutput($articleId, $branchIds, $includeDebugOverlay, $clangId);
 
 
         if ($output['disabled'] || $output['json'] === '') {
-            if ($output['error'] && \rex::isDebugMode()) {
+            if ($output['error'] && rex::isDebugMode()) {
                 return '<!-- JSON-LD Error: ' . htmlspecialchars($output['error'], ENT_QUOTES) . ' -->' . "\n";
             }
             return '';
@@ -130,7 +140,8 @@ class JsonLdGenerator
         $html = '<script type="application/ld+json">' . "\n" . $output['json'] . "\n" . '</script>' . "\n";
 
         if ($includeDebugOverlay && function_exists('jsonld_render_debug_overlay_script')) {
-            $html .= jsonld_render_debug_overlay_script($output['payload'], $output['meta']);
+            $payload = is_array($output['payload']) ? $output['payload'] : [];
+            $html .= jsonld_render_debug_overlay_script($payload, $output['meta']);
         }
 
         return $html;
@@ -138,6 +149,9 @@ class JsonLdGenerator
 
     /**
      * Einheitliches JSON-LD Payload bauen.
+     *
+     * @param array<int, array<string, mixed>> $jsonLdItems
+     * @return array<mixed, mixed>
      */
     public static function buildPayload(array $jsonLdItems): array
     {
@@ -153,6 +167,8 @@ class JsonLdGenerator
 
     /**
      * JSON-LD Payload einheitlich formatieren.
+     *
+     * @param array<mixed, mixed> $payload
      */
     public static function encodePayload(array $payload): string
     {
@@ -167,7 +183,7 @@ class JsonLdGenerator
             | JSON_HEX_QUOT
         );
         if ($json === false || json_last_error() !== JSON_ERROR_NONE) {
-            throw new \RuntimeException('JSON-LD Encoding Error: ' . json_last_error_msg());
+            throw new RuntimeException('JSON-LD Encoding Error: ' . json_last_error_msg());
         }
 
         return $json;
@@ -203,7 +219,7 @@ class JsonLdGenerator
         return $value;
     }
 
-    public static function getArticleBranchKey($articleId, $clangId = null): string
+    public static function getArticleBranchKey(int $articleId, mixed $clangId = null): string
     {
         $clangId = self::normalizeClangId($clangId);
         if (class_exists(__NAMESPACE__ . '\\DomainConfig') && DomainConfig::isMultiDomain()) {
@@ -213,7 +229,7 @@ class JsonLdGenerator
         return 'article_branch_' . (int) $articleId . '_clang_' . $clangId;
     }
 
-    public static function getDisableJsonKey($articleId, $clangId = null): string
+    public static function getDisableJsonKey(int $articleId, mixed $clangId = null): string
     {
         $clangId = self::normalizeClangId($clangId);
         if (class_exists(__NAMESPACE__ . '\\DomainConfig') && DomainConfig::isMultiDomain()) {
@@ -223,7 +239,7 @@ class JsonLdGenerator
         return 'disable_json_' . (int) $articleId . '_clang_' . $clangId;
     }
 
-    public static function getCustomJsonKey($articleId, $clangId = null): string
+    public static function getCustomJsonKey(int $articleId, mixed $clangId = null): string
     {
         $clangId = self::normalizeClangId($clangId);
         if (class_exists(__NAMESPACE__ . '\\DomainConfig') && DomainConfig::isMultiDomain()) {
@@ -233,41 +249,42 @@ class JsonLdGenerator
         return 'custom_json_' . (int) $articleId . '_clang_' . $clangId;
     }
 
-    public static function isArticleJsonDisabled($articleId, $clangId = null): bool
+    public static function isArticleJsonDisabled(int $articleId, mixed $clangId = null): bool
     {
-        return (bool) \rex_config::get('jsonld_manager', self::getDisableJsonKey($articleId, $clangId), false);
+        return (bool) rex_config::get('jsonld_manager', self::getDisableJsonKey($articleId, $clangId), false);
     }
 
-    public static function getCustomJson($articleId, $clangId = null): string
+    public static function getCustomJson(int $articleId, mixed $clangId = null): string
     {
-        return (string) \rex_config::get('jsonld_manager', self::getCustomJsonKey($articleId, $clangId), '');
+        return (string) rex_config::get('jsonld_manager', self::getCustomJsonKey($articleId, $clangId), '');
     }
 
-    public static function hasCustomJson($articleId, $clangId = null): bool
+    public static function hasCustomJson(int $articleId, mixed $clangId = null): bool
     {
         return trim(self::getCustomJson($articleId, $clangId)) !== '';
     }
 
-    public static function getArticleBranchIds($articleId, $clangId = null): array
+    /** @return array<int, int> */
+    public static function getArticleBranchIds(int $articleId, mixed $clangId = null): array
     {
         $clangId = self::normalizeClangId($clangId);
-        $branchIds = self::normalizeBranchIds(\rex_config::get('jsonld_manager', self::getArticleBranchKey($articleId, $clangId), []));
+        $branchIds = self::normalizeBranchIds(rex_config::get('jsonld_manager', self::getArticleBranchKey($articleId, $clangId), []));
         if (!empty($branchIds)) {
             return $branchIds;
         }
 
         try {
-            $sql = \rex_sql::factory();
+            $sql = rex_sql::factory();
             $clangCandidates = array_values(array_unique(array_filter([
                 (int) $clangId,
-                (int) \rex_clang::getStartId(),
-            ], static function ($id) {
+                (int) rex_clang::getStartId(),
+            ], static function (int $id): bool {
                 return $id > 0;
             })));
 
             foreach ($clangCandidates as $candidateClangId) {
                 $sql->setQuery(
-                    'SELECT config FROM ' . \rex::getTable('jsonld_schemas') . ' WHERE article_id = ? AND clang_id = ? AND schema_type = "WebPage" AND active = 1 LIMIT 1',
+                    'SELECT config FROM ' . rex::getTable('jsonld_schemas') . ' WHERE article_id = ? AND clang_id = ? AND schema_type = "WebPage" AND active = 1 LIMIT 1',
                     [(int) $articleId, (int) $candidateClangId]
                 );
 
@@ -286,7 +303,7 @@ class JsonLdGenerator
                     return $schemaBranchIds;
                 }
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Fallback unten greift
         }
 
@@ -294,11 +311,10 @@ class JsonLdGenerator
     }
 
     /**
-     * Ermittelt die effektiven Branch-IDs fuer Backend und Frontend identisch.
-     *
-     * @param int|array|null $branchIds
+     * @param int|array<int, int|string>|string|null $branchIds
+     * @return array<int, int>
      */
-    public static function resolveBranchIdsForArticle($articleId, $clangId = null, $branchIds = null): array
+    public static function resolveBranchIdsForArticle(int $articleId, mixed $clangId = null, int|array|string|null $branchIds = null): array
     {
         $clangId = self::normalizeClangId($clangId);
         if ($branchIds !== null) {
@@ -321,21 +337,25 @@ class JsonLdGenerator
      * @param bool $isDebugMode Debug-Ausgabe aktiviert
      * @return array JSON-LD Array nach Schema.org Best Practice Reihenfolge
      */
-    public static function generateForArticle($articleId, $branchId = null, $isDebugMode = false, $clangId = null)
+    /**
+     * @param int|array<int, int|string>|string|null $branchId
+     * @return array<int, array<string, mixed>>
+     */
+    public static function generateForArticle(int $articleId, int|array|string|null $branchId = null, bool $isDebugMode = false, mixed $clangId = null): array
     {
         if (!$articleId) return [];
         
         $jsonLdItems = [];
         $effectiveClangId = self::normalizeClangId($clangId);
-        $currentArticle = \rex_article::get($articleId, $effectiveClangId);
+        $currentArticle = rex_article::get($articleId, $effectiveClangId);
         if (!$currentArticle) return [];
         
-        $addon = \rex_addon::get('jsonld_manager');
+        $addon = rex_addon::get('jsonld_manager');
         
         // Konfigurationen laden
         $websiteConfig = self::getGlobalSchemaConfig($addon, 'website_schema', $effectiveClangId, []);
         $organizationConfig = self::getGlobalSchemaConfig($addon, 'organization_schema', $effectiveClangId, []);
-        $localBusinessConfig = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getLocalizedConfig($addon, 'localbusiness_schema', $effectiveClangId, []);
+        $localBusinessConfig = LanguageConfig::getLocalizedConfig($addon, 'localbusiness_schema', $effectiveClangId, []);
         
         $branchIds = self::normalizeBranchIds($branchId);
         $branchConfigs = self::loadBranchConfigs($branchIds, $effectiveClangId, $localBusinessConfig, $isDebugMode);
@@ -375,7 +395,7 @@ class JsonLdGenerator
             $organizationSchema = [
                 '@context' => 'https://schema.org',
                 '@type' => 'Organization',
-                '@id' => rtrim(\rex::getServer(), '/') . '/#organization',
+                '@id' => rtrim(rex::getServer(), '/') . '/#organization',
                 'name' => $organizationConfig['name']
             ];
             
@@ -431,13 +451,14 @@ class JsonLdGenerator
         
         // 2. WebSite Schema (Website der Organisation)
         if (!empty($websiteConfig['name'])) {
+            $websiteClang = rex_clang::get($effectiveClangId);
             $websiteSchema = [
                 '@context' => 'https://schema.org',
                 '@type' => 'WebSite',
                 '@id' => self::getWebsiteUrl() . '/#website',
                 'name' => $websiteConfig['name'],
                 'url' => self::getWebsiteUrl() . '/',
-                'inLanguage' => \rex_clang::get($effectiveClangId)->getCode()
+                'inLanguage' => $websiteClang ? $websiteClang->getCode() : 'de'
             ];
             
             if (!empty($websiteConfig['description'])) {
@@ -462,7 +483,7 @@ class JsonLdGenerator
             // Verbindung zur Organization
             if (!empty($organizationConfig['name'])) {
                 $websiteSchema['publisher'] = [
-                    '@id' => rtrim(\rex::getServer(), '/') . '/#organization'
+                    '@id' => rtrim(rex::getServer(), '/') . '/#organization'
                 ];
             }
 
@@ -486,7 +507,7 @@ class JsonLdGenerator
                 self::debugLog('DYNAMIC URL CHECK', [
                     'dynamic_mapping_found' => $dynamicUrlMapping !== null,
                     'current_url' => $_SERVER['REQUEST_URI'] ?? 'unknown',
-                    'url_addon_available' => \rex_addon::get('url')->isAvailable()
+                    'url_addon_available' => rex_addon::get('url')->isAvailable()
                 ]);
             }
             
@@ -510,11 +531,12 @@ class JsonLdGenerator
                 }
             } else {
                 // Standard WebPage Schema
+                $webpageClang = rex_clang::get($effectiveClangId);
                 $webPageSchema = [
                     '@context' => 'https://schema.org',
                     '@type' => 'WebPage',
                     'url' => self::getArticleUrl($articleId),
-                    'inLanguage' => \rex_clang::get($effectiveClangId)->getCode()
+                    'inLanguage' => $webpageClang ? $webpageClang->getCode() : 'de'
                 ];
                 
                 // Name aus Konfiguration
@@ -523,16 +545,16 @@ class JsonLdGenerator
             
             $webPageName = '';
             if ($nameField === 'yrewrite_title') {
-                $webPageName = trim($currentArticle->getValue('yrewrite_title') ?: '');
+                $webPageName = trim((string) ($currentArticle->getValue('yrewrite_title') ?: ''));
             } else {
-                $webPageName = trim($currentArticle->getValue($nameField) ?: '');
+                $webPageName = trim((string) ($currentArticle->getValue($nameField) ?: ''));
             }
             
             if (empty($webPageName)) {
                 if ($fallbackNameField === 'name') {
                     $webPageName = $currentArticle->getName();
                 } else {
-                    $webPageName = $currentArticle->getValue($fallbackNameField);
+                    $webPageName = (string) $currentArticle->getValue($fallbackNameField);
                 }
             }
             $webPageSchema['name'] = $webPageName ?: 'Artikel';
@@ -543,13 +565,13 @@ class JsonLdGenerator
             
             $webPageDesc = '';
             if ($descField === 'yrewrite_description') {
-                $webPageDesc = trim($currentArticle->getValue('yrewrite_description') ?: '');
+                $webPageDesc = trim((string) ($currentArticle->getValue('yrewrite_description') ?: ''));
             } else {
-                $webPageDesc = trim($currentArticle->getValue($descField) ?: '');
+                $webPageDesc = trim((string) ($currentArticle->getValue($descField) ?: ''));
             }
             
             if (empty($webPageDesc) && $fallbackDescField) {
-                $webPageDesc = trim($currentArticle->getValue($fallbackDescField) ?: '');
+                $webPageDesc = trim((string) ($currentArticle->getValue($fallbackDescField) ?: ''));
             }
             
             if (!empty($webPageDesc)) {
@@ -560,14 +582,14 @@ class JsonLdGenerator
             if ($articleConfig['include_ispartof'] && !empty($websiteConfig['name'])) {
                 $webPageSchema['isPartOf'] = [
                     '@type' => 'WebSite',
-                    '@id' => rtrim(\rex::getServer(), '/') . '/#website'
+                    '@id' => rtrim(rex::getServer(), '/') . '/#website'
                 ];
             }
             
             // about (Verbindung zur Organization)
             if ($articleConfig['include_about'] && !empty($organizationConfig['name'])) {
                 $webPageSchema['about'] = [
-                    '@id' => rtrim(\rex::getServer(), '/') . '/#organization'
+                    '@id' => rtrim(rex::getServer(), '/') . '/#organization'
                 ];
             }
             
@@ -578,10 +600,11 @@ class JsonLdGenerator
                 
                 if (!empty($imageValue)) {
                     $imageUrl = '';
-                    if (strpos($imageValue, 'http') === 0) {
-                        $imageUrl = $imageValue;
+                    $imageValueString = (string) $imageValue;
+                    if (strpos($imageValueString, 'http') === 0) {
+                        $imageUrl = $imageValueString;
                     } else {
-                        $imageUrl = self::getWebsiteUrl() . '/media/' . $imageValue;
+                        $imageUrl = self::getWebsiteUrl() . '/media/' . $imageValueString;
                     }
                     
                     $webPageSchema['primaryImageOfPage'] = [
@@ -598,9 +621,12 @@ class JsonLdGenerator
                 
                 if (!empty($dateValue) && $dateValue !== '0000-00-00 00:00:00') {
                     if (is_numeric($dateValue)) {
-                        $webPageSchema['dateModified'] = date('Y-m-d', $dateValue);
+                        $webPageSchema['dateModified'] = date('Y-m-d', (int) $dateValue);
                     } else {
-                        $webPageSchema['dateModified'] = date('Y-m-d', strtotime($dateValue));
+                        $timestamp = strtotime((string) $dateValue);
+                        if (false !== $timestamp) {
+                            $webPageSchema['dateModified'] = date('Y-m-d', $timestamp);
+                        }
                     }
                 }
             }
@@ -658,7 +684,7 @@ class JsonLdGenerator
         // 5. BreadcrumbList Schema (Navigation)
         $breadcrumbs = [];
         $position = 1;
-        $startArticleId = \rex_article::getSiteStartArticleId();
+        $startArticleId = rex_article::getSiteStartArticleId();
         
         // Startseite immer als erstes Element
         $breadcrumbs[] = [
@@ -715,7 +741,7 @@ class JsonLdGenerator
             self::debugLog('BreadcrumbList Schema hinzugefügt', ['items' => count($breadcrumbs)]);
             self::debugLog('JSON-LD Generation abgeschlossen', [
                 'total_schemas' => count($jsonLdItems),
-                'schemas' => array_map(function($item) { return $item['@type']; }, $jsonLdItems),
+                'schemas' => array_map(function(array $item) { return $item['@type']; }, $jsonLdItems),
                 'branch_id_used' => $primaryBranchId,
                 'branch_ids_used' => $branchIds
             ]);
@@ -730,12 +756,20 @@ class JsonLdGenerator
      * @param string $message
      * @param array $data
      */
-    private static function debugLog($message, $data = [])
+    /** @param array<string, mixed> $data */
+    private static function debugLog(string $message, array $data = []): void
     {
-        return;
+        if (!rex::isDebugMode()) {
+            return;
+        }
+
+        \rex_logger::factory()->log(\Psr\Log\LogLevel::DEBUG, $message, [
+            'jsonld_data' => json_encode($data, JSON_UNESCAPED_UNICODE),
+        ]);
     }
 
-    public static function normalizeBranchIds($branchId): array
+    /** @return array<int, int> */
+    public static function normalizeBranchIds(mixed $branchId): array
     {
         if (is_array($branchId)) {
             $branchIds = $branchId;
@@ -753,12 +787,13 @@ class JsonLdGenerator
         }
 
         $branchIds = array_map('intval', $branchIds);
-        return array_values(array_unique(array_filter($branchIds, static function ($id) {
+        return array_values(array_unique(array_filter($branchIds, static function (int $id): bool {
             return $id > 0;
         })));
     }
 
-    private static function normalizeStringList($value): array
+    /** @return array<int, string> */
+    private static function normalizeStringList(mixed $value): array
     {
         if (is_array($value)) {
             $items = $value;
@@ -768,29 +803,30 @@ class JsonLdGenerator
             $items = [];
         }
 
-        $items = array_map(static function ($item) {
+        $items = array_map(static function ($item): string {
             return trim((string) $item);
         }, $items);
 
-        return array_values(array_unique(array_filter($items, static function ($item) {
+        return array_values(array_unique(array_filter($items, static function (string $item): bool {
             return $item !== '';
         })));
     }
 
-    private static function normalizeClangId($clangId = null): int
+    private static function normalizeClangId(mixed $clangId = null): int
     {
         $clangId = $clangId !== null ? (int) $clangId : 0;
-        return $clangId > 0 ? $clangId : (int) \rex_clang::getCurrentId();
+        return $clangId > 0 ? $clangId : (int) rex_clang::getCurrentId();
     }
 
+    /** @return array<int, int> */
     private static function getDefaultBranchIds(int $clangId): array
     {
         try {
             [$domainWhere, $domainParams] = self::getBranchDomainCondition();
-            $sql = \rex_sql::factory();
+            $sql = rex_sql::factory();
 
             $sql->setQuery(
-                'SELECT id FROM ' . \rex::getTable('jsonld_localbusiness_branches') . '
+                'SELECT id FROM ' . rex::getTable('jsonld_localbusiness_branches') . '
                  WHERE clang_id = ?' . $domainWhere . '
                  ORDER BY is_main_branch DESC, sort_order ASC, id ASC
                  LIMIT 1',
@@ -800,14 +836,18 @@ class JsonLdGenerator
             if ($sql->getRows() > 0) {
                 return [(int) $sql->getValue('id')];
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Keine Branch verwenden
         }
 
         return [];
     }
 
-    private static function getGlobalSchemaConfig(\rex_addon $addon, string $baseKey, int $clangId, array $default = []): array
+    /**
+     * @param array<string, mixed> $default
+     * @return array<string, mixed>
+     */
+    private static function getGlobalSchemaConfig(\rex_addon_interface $addon, string $baseKey, int $clangId, array $default = []): array
     {
         if (class_exists(__NAMESPACE__ . '\\DomainConfig') && DomainConfig::isMultiDomain()) {
             $configKey = $baseKey . '_domain_' . DomainConfig::getActiveDomainId() . '_clang_' . $clangId;
@@ -817,15 +857,18 @@ class JsonLdGenerator
             }
         }
 
-        return \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getLocalizedConfig($addon, $baseKey, $clangId, $default);
+        return LanguageConfig::getLocalizedConfig($addon, $baseKey, $clangId, $default);
     }
 
+    /**
+     * @return array{0: string, 1: array<int, int>}
+     */
     private static function getBranchDomainCondition(): array
     {
         if (
             class_exists(__NAMESPACE__ . '\\DomainConfig')
             && DomainConfig::isMultiDomain()
-            && self::tableHasColumn(\rex::getTable('jsonld_localbusiness_branches'), 'domain_id')
+            && self::tableHasColumn(rex::getTable('jsonld_localbusiness_branches'), 'domain_id')
         ) {
             return [' AND (domain_id = ? OR domain_id IS NULL)', [(int) DomainConfig::getActiveDomainId()]];
         }
@@ -842,16 +885,22 @@ class JsonLdGenerator
         }
 
         try {
-            $sql = \rex_sql::factory();
+            $sql = rex_sql::factory();
             $sql->setQuery('SHOW COLUMNS FROM ' . $table . ' LIKE ?', [$column]);
             $cache[$cacheKey] = $sql->getRows() > 0;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $cache[$cacheKey] = false;
         }
 
         return $cache[$cacheKey];
     }
 
+    /**
+     * @param array<int, int> $branchIds
+     * @param array<int, array<string, mixed>> $items
+     * @param array<string, mixed>|null $payload
+     * @return array<string, mixed>
+     */
     private static function buildDebugMeta(int $articleId, int $clangId, array $branchIds, array $items, ?array $payload, string $source): array
     {
         $types = self::extractTypes($items, $payload);
@@ -875,11 +924,16 @@ class JsonLdGenerator
         return $meta;
     }
 
+    /**
+     * @param array<int, array<string, mixed>> $items
+     * @param array<mixed, mixed>|null $payload
+     * @return array<int, string>
+     */
     private static function extractTypes(array $items, ?array $payload): array
     {
         $types = [];
         foreach ($items as $item) {
-            if (is_array($item) && isset($item['@type'])) {
+            if (isset($item['@type'])) {
                 $types[] = (string) $item['@type'];
             }
         }
@@ -904,16 +958,22 @@ class JsonLdGenerator
         return $types;
     }
 
+    /**
+     * @param array<int, int> $branchIds
+     * @param array<string, mixed> $baseConfig
+     * @return array<int, array{branch_id: int, config: array<string, mixed>}>
+     */
     private static function loadBranchConfigs(array $branchIds, int $clangId, array $baseConfig, bool $isDebugMode): array
     {
         $branchConfigs = [];
 
         foreach ($branchIds as $singleBranchId) {
             try {
-                $sql = \rex_sql::factory();
-                $sql->setQuery('SELECT branch_name, config FROM ' . \rex::getTable('jsonld_localbusiness_branches') . ' WHERE id = ? AND clang_id = ?', [$singleBranchId, $clangId]);
+                $sql = rex_sql::factory();
+                $sql->setQuery('SELECT branch_name, config FROM ' . rex::getTable('jsonld_localbusiness_branches') . ' WHERE id = ? AND clang_id = ?', [$singleBranchId, $clangId]);
                 if ($sql->hasNext()) {
-                    $branchConfig = json_decode($sql->getValue('config'), true) ?: [];
+                    $configRaw = $sql->getValue('config');
+                    $branchConfig = is_string($configRaw) ? (json_decode($configRaw, true) ?: []) : [];
                     $mergedConfig = array_merge($baseConfig, $branchConfig);
                     if (empty($mergedConfig['name'])) {
                         $mergedConfig['name'] = $sql->getValue('branch_name');
@@ -931,7 +991,7 @@ class JsonLdGenerator
                         ]);
                     }
                 }
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 if ($isDebugMode) {
                     self::debugLog('Branch-Config Fehler', [
                         'branch_id' => $singleBranchId,
@@ -945,7 +1005,11 @@ class JsonLdGenerator
     }
 
 
-            private static function buildLocalBusinessSchema(array $localBusinessConfig, $branchId = null): ?array
+            /**
+             * @param array<string, mixed> $localBusinessConfig
+             * @return array<string, mixed>|null
+             */
+            private static function buildLocalBusinessSchema(array $localBusinessConfig, ?int $branchId = null): ?array
             {
 
             if (empty($localBusinessConfig['name'])) {
@@ -957,7 +1021,7 @@ class JsonLdGenerator
             $localBusinessSchema = [
                 '@context' => 'https://schema.org',
                 '@type' => $type,
-                '@id' => rtrim(\rex::getServer(), '/') . '/#localbusiness' . ($branchId ? '_' . $branchId : ''),
+                '@id' => rtrim(rex::getServer(), '/') . '/#localbusiness' . ($branchId ? '_' . $branchId : ''),
                 'name' => $localBusinessConfig['name']
             ];
 
@@ -982,7 +1046,7 @@ class JsonLdGenerator
         if (!empty($localBusinessConfig['description'])) {
             $localBusinessSchema['description'] = $localBusinessConfig['description'];
         }
-        if (!empty($localBusinessConfig['telephone']) && trim($localBusinessConfig['telephone']) !== '') {
+        if (!empty($localBusinessConfig['telephone'])) {
             $localBusinessSchema['telephone'] = $localBusinessConfig['telephone'];
         }
         if (!empty($localBusinessConfig['paymentAccepted'])) {
@@ -1027,7 +1091,7 @@ class JsonLdGenerator
 
         if (!empty($localBusinessConfig['openingHoursSpecification'])) {
             $openingHours = $localBusinessConfig['openingHoursSpecification'];
-            if (is_array($openingHours) && count($openingHours) > 0) {
+            if (is_array($openingHours)) {
                 $hasValidHours = false;
                 foreach ($openingHours as $hours) {
                     if (is_array($hours) && !empty($hours['dayOfWeek']) && (!empty($hours['opens']) || !empty($hours['closes']))) {
@@ -1064,6 +1128,10 @@ class JsonLdGenerator
         return $localBusinessSchema;
     }
 
+    /**
+     * @param array<string, mixed> $localBusinessConfig
+     * @return array<int, string>
+     */
     private static function normalizeLocalBusinessImageUrls(array $localBusinessConfig): array
     {
         $rawImages = $localBusinessConfig['images'] ?? $localBusinessConfig['image'] ?? [];
@@ -1089,10 +1157,7 @@ class JsonLdGenerator
                 continue;
             }
 
-            $mediaPath = \rex_url::media($file);
-            if ($mediaPath === '') {
-                continue;
-            }
+            $mediaPath = rex_url::media($file);
 
             $imageUrls[] = str_starts_with($mediaPath, 'http') ? $mediaPath : $baseUrl . $mediaPath;
         }
@@ -1111,44 +1176,51 @@ class JsonLdGenerator
     }
     
     /**
-     * Prüft ob für die aktuelle URL ein dynamisches URL-Profil existiert
-     * @param int $articleId
-     * @param int $clangId
-     * @return array|null Mapping-Konfiguration oder null
+     * Prüft ob für die aktuelle URL ein dynamisches URL-Profil existiert.
+     *
+     * @return array{profile: array<string, mixed>, schema_type: mixed, field_mappings: array<mixed, mixed>}|null Mapping-Konfiguration oder null
      */
-    private static function getDynamicUrlMapping($articleId, $clangId)
+    private static function getDynamicUrlMapping(int $articleId, int $clangId): ?array
     {
         // URL AddOn verfügbar prüfen
-        if (!\rex_addon::get('url')->isAvailable()) {
+        if (!rex_addon::get('url')->isAvailable()) {
             return null;
         }
         
         try {
             // Direkt über URL AddOn prüfen statt über REQUEST_URI
-            $urlObject = \Url\Url::resolveCurrent();
+            $urlObject = Url::resolveCurrent();
             
             if ($urlObject) {
-                $profileNamespace = $urlObject->getProfile()->getNamespace();
+                $profileObject = $urlObject->getProfile();
+                if (null === $profileObject) {
+                    return null;
+                }
+
+                $profileNamespace = $profileObject->getNamespace();
                 
                 // URL-Profile mit aktiven Mappings laden
-                $sql = \rex_sql::factory();
+                $sql = rex_sql::factory();
                 $profiles = $sql->getArray('
                     SELECT p.*, m.schema_type, m.field_mappings, m.active 
-                    FROM ' . \rex::getTable('url_generator_profile') . ' p
-                    INNER JOIN ' . \rex::getTable('jsonld_url_profile_mappings') . ' m ON p.id = m.url_profile_id
+                    FROM ' . rex::getTable('url_generator_profile') . ' p
+                    INNER JOIN ' . rex::getTable('jsonld_url_profile_mappings') . ' m ON p.id = m.url_profile_id
                     WHERE m.active = 1 AND p.namespace = ?
                 ', [$profileNamespace]);
                 
                 if (!empty($profiles)) {
                     $profile = $profiles[0]; // Erstes Match verwenden
+                    $fieldMappingsRaw = $profile['field_mappings'] ?? null;
+                    $fieldMappings = is_string($fieldMappingsRaw) ? (json_decode($fieldMappingsRaw, true) ?: []) : [];
+
                     return [
                         'profile' => $profile,
                         'schema_type' => $profile['schema_type'],
-                        'field_mappings' => json_decode($profile['field_mappings'], true) ?: []
+                        'field_mappings' => $fieldMappings,
                     ];
                 }
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Fehler ignorieren, fallback zu Standard-Schema
         }
         
@@ -1161,7 +1233,9 @@ class JsonLdGenerator
      * @param string $currentUrl
      * @return bool
      */
-    private static function matchesUrlProfile($profile, $currentUrl)
+    /** @param array<string, mixed> $profile */
+    // @phpstan-ignore-next-line bewusst als interne Reserve-API vorhanden
+    private static function matchesUrlProfile(array $profile, string $currentUrl): bool
     {
         $namespace = $profile['namespace'] ?? '';
         
@@ -1171,9 +1245,14 @@ class JsonLdGenerator
         
         // Zusätzlich: URL AddOn Methode testen
         try {
-            $urlObject = \Url\Url::resolveCurrent();
+            $urlObject = Url::resolveCurrent();
             if ($urlObject) {
-                $urlNamespace = $urlObject->getProfile()->getNamespace();
+                $profileObject = $urlObject->getProfile();
+                if (null === $profileObject) {
+                    return false;
+                }
+
+                $urlNamespace = $profileObject->getNamespace();
                 
                 $directMatch = ($urlNamespace === $namespace);
                 
@@ -1181,7 +1260,7 @@ class JsonLdGenerator
                     return true;
                 }
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Fehler ignorieren
         }
         
@@ -1196,7 +1275,11 @@ class JsonLdGenerator
      * @param bool $isDebugMode
      * @return array|null
      */
-    private static function generateDynamicSchema($dynamicMapping, $articleId, $clangId, $isDebugMode)
+    /**
+     * @param array<string, mixed> $dynamicMapping
+     * @return array<string, mixed>|null
+     */
+    private static function generateDynamicSchema(array $dynamicMapping, int $articleId, int $clangId, bool $isDebugMode): ?array
     {
         try {
             $schemaType = $dynamicMapping['schema_type'] ?? 'WebPage';
@@ -1216,7 +1299,11 @@ class JsonLdGenerator
                 '@context' => 'https://schema.org',
                 '@type' => $schemaType,
                 'url' => self::getDynamicArticleUrl($profile, $articleId),
-                'inLanguage' => \rex_clang::get($clangId)->getCode()
+                'inLanguage' => (static function () use ($clangId): string {
+                    $clang = rex_clang::get($clangId);
+
+                    return $clang ? $clang->getCode() : 'de';
+                })(),
             ];
             
             // YForm-Dataset über URL AddOn ermitteln
@@ -1248,7 +1335,7 @@ class JsonLdGenerator
             
             return $schema;
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             if ($isDebugMode) {
                 self::debugLog('Fehler beim Generieren des dynamischen Schemas', [
                     'error' => $e->getMessage(),
@@ -1264,11 +1351,15 @@ class JsonLdGenerator
      * @param array $profile URL-Profil-Daten  
      * @return array|null Dataset-Array oder null
      */
-    private static function getCurrentDataset($profile)
+    /**
+     * @param array<string, mixed> $profile
+     * @return array<string, mixed>|null
+     */
+    private static function getCurrentDataset(array $profile): ?array
     {
         try {
             // Dataset-ID über URL AddOn ermitteln - GENAU WIE IM NEWS-MODUL
-            $urlObject = \Url\Url::resolveCurrent();
+            $urlObject = Url::resolveCurrent();
             
             if ($urlObject) {
                 $datasetId = $urlObject->getDatasetId();
@@ -1279,7 +1370,7 @@ class JsonLdGenerator
                     
                     if ($tableName) {
                         // WICHTIG: Wie im News-Modul - YForm Manager Dataset verwenden
-                        $dataset = \rex_yform_manager_dataset::get($datasetId, $tableName);
+                        $dataset = rex_yform_manager_dataset::get($datasetId, $tableName);
                         
                         if ($dataset) {
                             // Dataset zu Array konvertieren für Kompatibilität
@@ -1289,7 +1380,7 @@ class JsonLdGenerator
                     }
                 }
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Fehler ignorieren
         }
         
@@ -1306,9 +1397,13 @@ class JsonLdGenerator
      * @param bool $isDebugMode
      * @return mixed
      */
-    private static function resolveMappingValue($mapping, $dataset, $yformTableName, $articleId, $clangId, $isDebugMode)
+    /**
+     * @param array<string, mixed> $mapping
+     * @param array<string, mixed>|null $dataset
+     */
+    private static function resolveMappingValue(array $mapping, ?array $dataset, ?string $yformTableName, int $articleId, int $clangId, bool $isDebugMode): mixed
     {
-        if (!is_array($mapping) || !isset($mapping['type'])) {
+        if (!isset($mapping['type'])) {
             return null;
         }
         
@@ -1331,8 +1426,9 @@ class JsonLdGenerator
                 
             case 'field':
                 // Priorität 1: Dataset-Array (direkte SQL-Abfrage wie im Backend)
-                if ($dataset && is_array($dataset) && isset($dataset[$value])) {
-                    $fieldValue = $dataset[$value];
+                $valueKey = (string) $value;
+                if (null !== $dataset && isset($dataset[$valueKey])) {
+                    $fieldValue = $dataset[$valueKey];
                     
                     if ($isDebugMode) {
                         self::debugLog('Feld-Wert über Dataset-Array aufgelöst', [
@@ -1346,14 +1442,14 @@ class JsonLdGenerator
                 }
                 
                 // Fallback: GET-Parameter
-                if (self::isWhitelistedGetParam($value)) {
-                    return \rex_request($value, 'string');
+                if (self::isWhitelistedGetParam($valueKey)) {
+                    return \rex_request($valueKey, 'string');
                 }
                 
                 // Fallback: Artikel-Feld
-                $article = \rex_article::get($articleId, $clangId);
+                $article = rex_article::get($articleId, $clangId);
                 if ($article) {
-                    return $article->getValue($value);
+                    return $article->getValue($valueKey);
                 }
                 
                 break;
@@ -1367,19 +1463,26 @@ class JsonLdGenerator
      * @param array $profile
      * @return string|null
      */
-    private static function getYFormTableName($profile)
+    /** @param array<string, mixed> $profile */
+    private static function getYFormTableName(array $profile): ?string
     {
         // Aus table_parameters
         if (!empty($profile['table_parameters'])) {
-            $tableParams = json_decode($profile['table_parameters'], true);
+            $tableParamsRaw = $profile['table_parameters'];
+            $tableParams = is_string($tableParamsRaw) ? json_decode($tableParamsRaw, true) : null;
             if ($tableParams && !empty($tableParams['table_name'])) {
-                return self::isValidTableName($tableParams['table_name']) ? $tableParams['table_name'] : null;
+                $tableName = $tableParams['table_name'];
+                if (is_string($tableName) && self::isValidTableName($tableName)) {
+                    return $tableName;
+                }
+
+                return null;
             }
         }
         
         // Fallback: table_name bereinigen
         if (!empty($profile['table_name'])) {
-            $tableName = str_replace('1_xxx_', '', $profile['table_name']);
+            $tableName = str_replace('1_xxx_', '', (string) $profile['table_name']);
             return self::isValidTableName($tableName) ? $tableName : null;
         }
         
@@ -1392,7 +1495,8 @@ class JsonLdGenerator
      * @param int $articleId
      * @return string
      */
-    private static function getDynamicArticleUrl($profile, $articleId)
+    /** @param array<string, mixed> $profile */
+    private static function getDynamicArticleUrl(array $profile, int $articleId): string
     {
         try {
             // Aktuelle URL aus URL AddOn verwenden
@@ -1403,7 +1507,7 @@ class JsonLdGenerator
                 $requestPath = '/' . ltrim(parse_url($requestPath, PHP_URL_PATH) ?: '', '/');
                 return self::getWebsiteUrl() . $requestPath;
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Fallback zu Standard-URL
         }
         
@@ -1429,7 +1533,7 @@ class JsonLdGenerator
 
     private static function isWhitelistedGetParam(string $paramName): bool
     {
-        $whitelist = (array) \rex_addon::get('jsonld_manager')->getConfig('whitelist.get_params', []);
+        $whitelist = (array) rex_addon::get('jsonld_manager')->getConfig('whitelist.get_params', []);
         return in_array($paramName, $whitelist, true);
     }
 

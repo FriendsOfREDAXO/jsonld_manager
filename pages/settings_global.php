@@ -1,4 +1,6 @@
 <?php
+use FriendsOfRedaxo\JsonLdManager\LanguageConfig;
+
 /**
  * JSON-LD Manager - Allgemeine Angaben
  * Übersicht über alle globalen Schema-Einstellungen
@@ -7,9 +9,9 @@
 // Output Buffering für Fragment
 ob_start();
 $addon = rex_addon::get('jsonld_manager');
-$activeClangId = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId();
+$activeClangId = LanguageConfig::getActiveClangId();
 
-echo \FriendsOfRedaxo\JsonLdManager\LanguageConfig::renderClangTabs($activeClangId);
+echo LanguageConfig::renderClangTabs($activeClangId);
 
 // === CSS FÜR PROFESSIONELLES DESIGN ===
 echo '<style>
@@ -125,10 +127,10 @@ echo '<div class="alert alert-info">
 </div>';
 
 // Status der Konfigurationen prüfen
-$organizationConfig = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getLocalizedConfig($addon, 'organization_schema', $activeClangId, []);
-$websiteConfig = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getLocalizedConfig($addon, 'website_schema', $activeClangId, []);
+$organizationConfig = LanguageConfig::getLocalizedConfig($addon, 'organization_schema', $activeClangId, []);
+$websiteConfig = LanguageConfig::getLocalizedConfig($addon, 'website_schema', $activeClangId, []);
 // BreadcrumbList wird jetzt automatisch immer ausgegeben
-$localBusinessConfig = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getLocalizedConfig($addon, 'localbusiness_schema', $activeClangId, []);
+$localBusinessConfig = LanguageConfig::getLocalizedConfig($addon, 'localbusiness_schema', $activeClangId, []);
 
 // === SCHEMA KARTEN ===
 echo '<div class="row">';

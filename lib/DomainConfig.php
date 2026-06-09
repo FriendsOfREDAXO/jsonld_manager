@@ -2,22 +2,30 @@
 
 namespace FriendsOfRedaxo\JsonLdManager;
 
+use rex_addon;
+use rex_sql;
+use rex;
+use rex_sql_exception;
+use rex_yrewrite;
+use rex_url;
+
 class DomainConfig
 {
     private const SESSION_KEY = 'jsonld_manager_active_domain_id';
 
+    /** @return array<int, array<string, mixed>> */
     public static function getDomains(): array
     {
         // Prüfen ob YRewrite installiert und aktiv ist
-        if (!\rex_addon::get('yrewrite')->isAvailable()) {
+        if (!rex_addon::get('yrewrite')->isAvailable()) {
             return [];
         }
-        
+
         try {
-            $sql = \rex_sql::factory();
-            $sql->setQuery('SELECT id, domain, mount_id, start_id FROM ' . \rex::getTable('yrewrite_domain') . ' ORDER BY domain ASC');
+            $sql = rex_sql::factory();
+            $sql->setQuery('SELECT id, domain, mount_id, start_id FROM ' . rex::getTable('yrewrite_domain') . ' ORDER BY domain ASC');
             return $sql->getArray();
-        } catch (\rex_sql_exception $e) {
+        } catch (rex_sql_exception $e) {
             // Fallback wenn Tabelle nicht existiert oder leer ist
             return [];
         }
@@ -33,17 +41,22 @@ class DomainConfig
         // Prüfe URL-Parameter
         $requested = \rex_request('domain_id', 'int', 0);
         if ($requested > 0 && self::domainExists($requested)) {
-            if (\rex::isBackend()) {
+            if (rex::isBackend()) {
                 \rex_set_session(self::SESSION_KEY, $requested);
             }
             return $requested;
         }
 
         // Frontend: ohne Session arbeiten (verhindert Fehler bei nicht eingeloggten Besuchern)
-        if (!\rex::isBackend()) {
-            if (\rex_addon::get('yrewrite')->isAvailable() && class_exists('rex_yrewrite')) {
-                $currentDomain = \rex_yrewrite::getCurrentDomain();
-                if ($currentDomain && method_exists($currentDomain, 'getId')) {
+        if (!rex::isBackend()) {
+            if (rex_addon::get('yrewrite')->isAvailable() && class_exists('rex_yrewrite')) {
+                $currentDomain = rex_yrewrite::getCurrentDomain();
+                if ($currentDomain instanceof \rex_yrewrite_domain) {
+                    $currentDomainId = (int) $currentDomain->getId();
+                    if ($currentDomainId > 0) {
+                        return $currentDomainId;
+                    }
+                } elseif (is_object($currentDomain) && method_exists($currentDomain, 'getId')) {
                     $currentDomainId = (int) $currentDomain->getId();
                     if ($currentDomainId > 0) {
                         return $currentDomainId;
@@ -62,7 +75,7 @@ class DomainConfig
         $domains = self::getDomains();
         if (!empty($domains)) {
             $fallbackDomainId = (int) $domains[0]['id'];
-            if (\rex::isBackend()) {
+            if (rex::isBackend()) {
                 \rex_set_session(self::SESSION_KEY, $fallbackDomainId);
             }
             return $fallbackDomainId;
@@ -71,31 +84,32 @@ class DomainConfig
         return 1; // Notfall-Fallback
     }
 
+    /** @return array<string, mixed>|null */
     public static function getActiveDomain(): ?array
     {
         $activeDomainId = self::getActiveDomainId();
         $domains = self::getDomains();
-        
+
         foreach ($domains as $domain) {
             if ((int) $domain['id'] === $activeDomainId) {
                 return $domain;
             }
         }
-        
+
         return null;
     }
 
     public static function domainExists(int $domainId): bool
     {
-        if (!\rex_addon::get('yrewrite')->isAvailable()) {
+        if (!rex_addon::get('yrewrite')->isAvailable()) {
             return false;
         }
 
-        $sql = \rex_sql::factory();
+        $sql = rex_sql::factory();
         try {
-            $sql->setQuery('SELECT id FROM ' . \rex::getTable('yrewrite_domain') . ' WHERE id = ?', [$domainId]);
+            $sql->setQuery('SELECT id FROM ' . rex::getTable('yrewrite_domain') . ' WHERE id = ?', [$domainId]);
             return $sql->getRows() > 0;
-        } catch (\rex_sql_exception $e) {
+        } catch (rex_sql_exception $e) {
             return false;
         }
     }
@@ -126,8 +140,8 @@ class DomainConfig
             $options .= '<option value="' . $domainId . '"' . $selected . '>' . $label . '</option>';
         }
 
-        $currentUrl = \rex_url::currentBackendPage();
-        
+        $currentUrl = rex_url::currentBackendPage();
+
         return '
         <div class="form-group">
             <label class="col-sm-3 control-label">Domain auswählen</label>
@@ -167,7 +181,7 @@ class DomainConfig
     {
         $domain = null;
 
-        if (\rex_addon::get('yrewrite')->isAvailable()) {
+        if (rex_addon::get('yrewrite')->isAvailable()) {
             $domains = self::getDomains();
 
             if ($domainId !== null) {
@@ -189,7 +203,7 @@ class DomainConfig
             return self::normalizeBaseUrl($domain);
         }
 
-        return rtrim((string) \rex::getServer(), '/');
+        return rtrim((string) rex::getServer(), '/');
     }
 
     private static function normalizeBaseUrl(string $domain): string

@@ -21,6 +21,9 @@ if ($func === 'save_legacy_meta') {
         // Prüfung auf "bösen" Code, aber Meta-Tags sind immer erlaubt
         $metaTagPattern = '/^\s*<meta\s/i';
         $lines = preg_split('/\r?\n/', $legacyMeta);
+        if (!is_array($lines)) {
+            $lines = [];
+        }
         $badFound = false;
         foreach ($lines as $line) {
             $trimmed = trim($line);

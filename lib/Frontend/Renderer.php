@@ -2,6 +2,16 @@
 
 namespace FriendsOfRedaxo\JsonLdManager\Frontend;
 
+use rex_article;
+use rex_addon;
+use FriendsOfRedaxo\JsonLdManager\JsonLdGenerator;
+use rex_cache;
+use Exception;
+use FriendsOfRedaxo\JsonLdManager\Url\RuleEngine;
+use rex_sql;
+use rex;
+use FriendsOfRedaxo\JsonLdManager\Mapping\DataSourceExtended;
+
 /**
  * JSON-LD Renderer - Frontend API
  * 
@@ -14,34 +24,30 @@ namespace FriendsOfRedaxo\JsonLdManager\Frontend;
  */
 class Renderer
 {
-    /**
-     * @var array Cache für generierte JSON-LD Daten
-     */
-    private static $cache = [];
-    
-    /**
-     * @var array Debug-Informationen sammeln
-     */
-    private static $debugInfo = [];
-    
+    /** @var array<string, string> Cache für generierte JSON-LD Daten */
+    private static array $cache = [];
+
+    /** @var array<int, array<string, mixed>> Debug-Informationen sammeln */
+    private static array $debugInfo = [];
+
     /**
      * JSON-LD für aktuelle Seite ausgeben
      * 
-     * @param string|null $schemaType Spezifischer Schema-Type (optional)
-     * @param array $additionalData Zusätzliche Daten für Mapping (optional)
+    * @param string|null $schemaType Spezifischer Schema-Type (optional)
+    * @param array<string, mixed> $additionalData Zusätzliche Daten für Mapping (optional)
      * @return string JSON-LD als formatierter String
      */
-    public static function render($schemaType = null, $additionalData = [])
+    public static function render(?string $schemaType = null, array $additionalData = []): string
     {
         try {
-            $article = \rex_article::getCurrent();
+            $article = rex_article::getCurrent();
             if (!$article) {
                 return '';
             }
 
-            $addon = \rex_addon::get('jsonld_manager');
+            $addon = rex_addon::get('jsonld_manager');
             $isDebugMode = self::getSetting($addon, 'debug_mode', false);
-            $branchIds = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::resolveBranchIdsForArticle(
+            $branchIds = JsonLdGenerator::resolveBranchIdsForArticle(
                 (int) $article->getId(),
                 (int) $article->getClangId()
             );
@@ -52,7 +58,7 @@ class Renderer
                 return self::$cache[$cacheKey];
             }
 
-            $articleOutput = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::getArticleOutput(
+            $articleOutput = JsonLdGenerator::getArticleOutput(
                 (int) $article->getId(),
                 null,
                 $isDebugMode,
@@ -71,13 +77,13 @@ class Renderer
             if (self::getSetting($addon, 'cache_enabled', true)) {
                 self::$cache[$cacheKey] = $output;
                 if (class_exists('\rex_cache')) {
-                    \rex_cache::set('jsonld_manager', 'article_'.$article->getId().'_'.$article->getClangId(), $output);
+                    rex_cache::set('jsonld_manager', 'article_'.$article->getId().'_'.$article->getClangId(), $output);
                 }
             }
 
             if ($isDebugMode) {
                 self::addDebugInfo('render_success', 'JSON-LD erfolgreich generiert', [
-                    'items_count' => count($articleOutput['items'] ?? []),
+                    'items_count' => count($articleOutput['items']),
                     'output_length' => strlen($output),
                     'cached' => self::getSetting($addon, 'cache_enabled', true),
                     'branch_ids' => $articleOutput['branch_ids'],
@@ -86,8 +92,8 @@ class Renderer
             }
 
             return $output;
-        } catch (\Exception $e) {
-            if (self::getSetting(\rex_addon::get('jsonld_manager'), 'debug_mode', false)) {
+        } catch (Exception $e) {
+            if (self::getSetting(rex_addon::get('jsonld_manager'), 'debug_mode', false)) {
                 self::addDebugInfo('render_error', 'JSON-LD Fehler', [
                     'error_message' => $e->getMessage(),
                     'error_file' => $e->getFile(),
@@ -98,36 +104,37 @@ class Renderer
             return '';
         }
     }
-    
+
     /**
      * JSON-LD für aktuelle Seite automatisch generieren (für Extension Point)
      * 
      * @return string JSON-LD Output
      */
-    public static function getCurrentPageJsonLd()
+    public static function getCurrentPageJsonLd(): string
     {
         // URL-Regeln prüfen
-        $urlRuleData = \FriendsOfRedaxo\JsonLdManager\Url\RuleEngine::matchCurrentUrl();
-        
+        $urlRuleData = RuleEngine::matchCurrentUrl();
+
         if ($urlRuleData) {
             return self::render($urlRuleData['schema_type'], $urlRuleData['data']);
         }
-        
+
         // Standard-Rendering
         return self::render();
     }
-    
+
     /**
      * Schema-Konfigurationen für Artikel ermitteln
      * 
      * @param int $articleId Artikel-ID
      * @param int $clangId Sprach-ID
      * @param string|null $schemaType Gewünschter Schema-Type
-     * @return array Array von Schema-Konfigurationen
+    * @return array<int, array{id: mixed, type: mixed, config: array<string, mixed>, priority: mixed}> Array von Schema-Konfigurationen
      */
-    private static function getArticleSchemas($articleId, $clangId, $schemaType = null)
+    // @phpstan-ignore-next-line bewusst als interne Reserve-API vorhanden
+    private static function getArticleSchemas(int $articleId, int $clangId, ?string $schemaType = null): array
     {
-        $isDebugMode = self::getSetting(\rex_addon::get('jsonld_manager'), 'debug_mode', false);
+        $isDebugMode = self::getSetting(rex_addon::get('jsonld_manager'), 'debug_mode', false);
         if ($isDebugMode) {
             self::addDebugInfo('schema_load', 'Lade Schema-Konfigurationen', [
                 'article_id' => $articleId,
@@ -135,26 +142,27 @@ class Renderer
                 'requested_schema_type' => $schemaType
             ]);
         }
-        
-        $sql = \rex_sql::factory();
-        
+
+        $sql = rex_sql::factory();
+
         $where = 'article_id = ? AND clang_id = ? AND active = 1';
         $params = [$articleId, $clangId];
-        
+
         if ($schemaType) {
             $where .= ' AND schema_type = ?';
             $params[] = $schemaType;
         }
-        
+
         $sql->setQuery('
-            SELECT * FROM '.\rex::getTable('jsonld_schemas').'
+            SELECT * FROM '.rex::getTable('jsonld_schemas').'
             WHERE '.$where.'
             ORDER BY priority ASC
         ', $params);
-        
+
         $schemas = [];
         while ($sql->hasNext()) {
-            $config = json_decode($sql->getValue('config'), true) ?: [];
+            $configRaw = $sql->getValue('config');
+            $config = is_string($configRaw) ? (json_decode($configRaw, true) ?: []) : [];
             $schemas[] = [
                 'id' => $sql->getValue('id'),
                 'type' => $sql->getValue('schema_type'),
@@ -163,17 +171,17 @@ class Renderer
             ];
             $sql->next();
         }
-        
+
         if ($isDebugMode) {
             self::addDebugInfo('schema_load', 'Schema-Konfigurationen geladen', [
                 'found_schemas' => count($schemas),
                 'schema_types' => array_column($schemas, 'type')
             ]);
         }
-        
+
         return $schemas;
     }
-    
+
     /**
      * Aktive LocalBusiness Branch für Artikel laden
      * 
@@ -181,21 +189,24 @@ class Renderer
      * @param int $clangId Sprach-ID
      * @return array|null LocalBusiness Schema oder null
      */
-    private static function getActiveLocalBusinessBranch($articleId, $clangId)
+    /** @return array<string, mixed>|null */
+    // @phpstan-ignore-next-line bewusst als interne Reserve-API vorhanden
+    private static function getActiveLocalBusinessBranch(int $articleId, int $clangId): ?array
     {
         // Artikel-Schema laden um LocalBusiness Branch ID zu finden
-        $sql = \rex_sql::factory();
+        $sql = rex_sql::factory();
         $sql->setQuery('
-            SELECT config FROM '.\rex::getTable('jsonld_schemas').'
+            SELECT config FROM '.rex::getTable('jsonld_schemas').'
             WHERE article_id = ? AND clang_id = ? AND schema_type = "WebPage" AND active = 1
             LIMIT 1
         ', [$articleId, $clangId]);
-        
+
         if ($sql->getRows() === 0) {
             return null;
         }
-        
-        $config = json_decode($sql->getValue('config'), true) ?: [];
+
+        $configRaw = $sql->getValue('config');
+        $config = is_string($configRaw) ? (json_decode($configRaw, true) ?: []) : [];
         $branchIds = $config['localbusiness_branch_ids'] ?? [];
         if (!is_array($branchIds)) {
             $branchIds = $branchIds ? [(int) $branchIds] : [];
@@ -204,21 +215,21 @@ class Renderer
             $branchIds = [(int) $config['localbusiness_branch_id']];
         }
         $branchId = (int) ($branchIds[0] ?? 0);
-        
+
         if ($branchId <= 0) {
             return null; // Keine LocalBusiness Zuordnung
         }
-        
+
         // LocalBusiness Branch laden und Status prüfen
-        $branchSql = \rex_sql::factory();
+        $branchSql = rex_sql::factory();
         $branchSql->setQuery('
-            SELECT branch_name, config FROM '.\rex::getTable('jsonld_localbusiness_branches').'
+            SELECT branch_name, config FROM '.rex::getTable('jsonld_localbusiness_branches').'
             WHERE id = ? AND clang_id = ?
         ', [$branchId, (int) $clangId]);
-        
+
         if ($branchSql->getRows() === 0) {
             // Branch nicht gefunden
-            $isDebugMode = self::getSetting(\rex_addon::get('jsonld_manager'), 'debug_mode', false);
+            $isDebugMode = self::getSetting(rex_addon::get('jsonld_manager'), 'debug_mode', false);
             if ($isDebugMode) {
                 self::addDebugInfo('localbusiness_missing', 'LocalBusiness Branch nicht gefunden', [
                     'article_id' => $articleId,
@@ -231,14 +242,15 @@ class Renderer
             }
             return null;
         }
-        
-        $branchConfig = json_decode($branchSql->getValue('config'), true) ?: [];
-        
+
+        $branchConfigRaw = $branchSql->getValue('config');
+        $branchConfig = is_string($branchConfigRaw) ? (json_decode($branchConfigRaw, true) ?: []) : [];
+
         // Prüfen ob LocalBusiness enabled ist
-        if (empty($branchConfig['enabled']) || !$branchConfig['enabled']) {
+        if (($branchConfig['enabled'] ?? false) !== true) {
             return null;
         }
-        
+
         // LocalBusiness Schema aus Branch-Config generieren
         return [
             'type' => 'LocalBusiness',
@@ -249,7 +261,7 @@ class Renderer
             'priority' => 50 // Höhere Priorität als WebPage
         ];
     }
-    
+
     /**
      * LocalBusiness Mappings aus Branch-Konfiguration erstellen
      * 
@@ -259,29 +271,33 @@ class Renderer
      * @param array $branchConfig Branch-Konfiguration
      * @return array Schema.org LocalBusiness Mappings
      */
-    private static function buildLocalBusinessMappings($branchConfig)
+    /**
+     * @param array<string, mixed> $branchConfig
+     * @return array<string, mixed>
+     */
+    private static function buildLocalBusinessMappings(array $branchConfig): array
     {
         $mappings = [
             '@context' => 'https://schema.org',
             '@type' => $branchConfig['businessType'] ?: 'LocalBusiness'
         ];
-        
+
         if (!empty($branchConfig['name'])) {
             $mappings['name'] = $branchConfig['name'];
         }
-        
+
         if (!empty($branchConfig['slogan'])) {
             $mappings['slogan'] = $branchConfig['slogan'];
         }
-        
+
         if (!empty($branchConfig['telephone'])) {
             $mappings['telephone'] = $branchConfig['telephone'];
         }
-        
+
         if (!empty($branchConfig['priceRange'])) {
             $mappings['priceRange'] = $branchConfig['priceRange'];
         }
-        
+
         // Address
         $address = [];
         if (!empty($branchConfig['streetAddress'])) {
@@ -296,12 +312,12 @@ class Renderer
         if (!empty($branchConfig['addressCountry'])) {
             $address['addressCountry'] = $branchConfig['addressCountry'];
         }
-        
+
         if (!empty($address)) {
             $address['@type'] = 'PostalAddress';
             $mappings['address'] = $address;
         }
-        
+
         // Geo-Koordinaten
         if (!empty($branchConfig['geo']['latitude']) && !empty($branchConfig['geo']['longitude'])) {
             $mappings['geo'] = [
@@ -310,12 +326,12 @@ class Renderer
                 'longitude' => $branchConfig['geo']['longitude']
             ];
         }
-        
+
         // Öffnungszeiten
         if (!empty($branchConfig['openingHoursSpecification']) && is_array($branchConfig['openingHoursSpecification'])) {
             $mappings['openingHoursSpecification'] = $branchConfig['openingHoursSpecification'];
         }
-        
+
         // Weitere Properties
         if (!empty($branchConfig['images'])) {
             $images = array_filter(array_map('trim', explode(',', $branchConfig['images'])));
@@ -323,37 +339,39 @@ class Renderer
                 $mappings['image'] = count($images) === 1 ? $images[0] : $images;
             }
         }
-        
+
         if (!empty($branchConfig['knowsLanguage']) && is_array($branchConfig['knowsLanguage'])) {
             $mappings['knowsLanguage'] = $branchConfig['knowsLanguage'];
         }
-        
+
         if (!empty($branchConfig['paymentAccepted'])) {
             $mappings['paymentAccepted'] = $branchConfig['paymentAccepted'];
         }
-        
+
         if (!empty($branchConfig['currenciesAccepted'])) {
             $mappings['currenciesAccepted'] = $branchConfig['currenciesAccepted'];
         }
-        
+
         if (!empty($branchConfig['areaServed'])) {
             $mappings['areaServed'] = $branchConfig['areaServed'];
         }
-        
+
         if (!empty($branchConfig['hasMap'])) {
             $mappings['hasMap'] = $branchConfig['hasMap'];
         }
-        
+
         return $mappings;
     }
-    
+
     /**
      * Standard WebPage Schema generieren
      * 
      * @param rex_article $article REDAXO Artikel
      * @return array Schema-Konfiguration
      */
-    private static function getDefaultWebPageSchema($article)
+    /** @return array<string, mixed> */
+    // @phpstan-ignore-next-line bewusst als interne Reserve-API vorhanden
+    private static function getDefaultWebPageSchema(rex_article $article): array
     {
         return [
             'type' => 'WebPage',
@@ -370,7 +388,7 @@ class Renderer
             'priority' => 999
         ];
     }
-    
+
     /**
      * Schema-Daten basierend auf Mapping generieren
      * 
@@ -379,39 +397,45 @@ class Renderer
      * @param array $additionalData Zusätzliche Daten
      * @return array|null Generierte Schema-Daten
      */
-    private static function generateSchemaData($schema, $article, $additionalData = [])
+    /**
+     * @param array<string, mixed> $schema
+     * @param array<string, mixed> $additionalData
+     * @return array<string, mixed>|null
+     */
+    // @phpstan-ignore-next-line bewusst als interne Reserve-API vorhanden
+    private static function generateSchemaData(array $schema, rex_article $article, array $additionalData = []): ?array
     {
         if (!isset($schema['config']['mappings'])) {
             return null;
         }
-        
+
         $mappings = $schema['config']['mappings'];
         $data = [];
-        
+
         foreach ($mappings as $property => $mapping) {
             if (is_array($mapping)) {
                 if (isset($mapping['source'])) {
                     // Property-Mapping
-                    $value = \FriendsOfRedaxo\JsonLdManager\Mapping\DataSourceExtended::getValue(
+                    $value = DataSourceExtended::getValue(
                         $mapping['source'], 
                         $article, 
                         $additionalData
                     );
-                    
+
                     // Fallback
                     if (empty($value) && isset($mapping['fallback'])) {
-                        $value = \FriendsOfRedaxo\JsonLdManager\Mapping\DataSourceExtended::getValue(
+                        $value = DataSourceExtended::getValue(
                             $mapping['fallback'], 
                             $article, 
                             $additionalData
                         );
                     }
-                    
+
                     // Transform
                     if (!empty($value) && isset($mapping['transform'])) {
-                        $value = \FriendsOfRedaxo\JsonLdManager\Mapping\DataSourceExtended::transformValue($value, $mapping['transform']);
+                        $value = DataSourceExtended::transformValue($value, $mapping['transform']);
                     }
-                    
+
                     if (!empty($value)) {
                         $data[$property] = $value;
                     } elseif (isset($mapping['required']) && $mapping['required']) {
@@ -430,30 +454,30 @@ class Renderer
                 $data[$property] = $mapping;
             }
         }
-        
+
         return !empty($data) ? $data : null;
     }
-    
+
     /**
      * Verschachtelte Mappings verarbeiten
      * 
-     * @param array $mapping Mapping-Konfiguration
+     * @param array<string, mixed> $mapping Mapping-Konfiguration
      * @param rex_article $article REDAXO Artikel
-     * @param array $additionalData Zusätzliche Daten
-     * @return array|null Verarbeitete Daten
+     * @param array<string, mixed> $additionalData Zusätzliche Daten
+     * @return array<string, mixed>|null Verarbeitete Daten
      */
-    private static function processNestedMapping($mapping, $article, $additionalData = [])
+    private static function processNestedMapping(array $mapping, rex_article $article, array $additionalData = []): ?array
     {
         $data = [];
-        
+
         foreach ($mapping as $key => $value) {
             if (is_array($value) && isset($value['source'])) {
-                $resolvedValue = \FriendsOfRedaxo\JsonLdManager\Mapping\DataSourceExtended::getValue($value['source'], $article, $additionalData);
-                
+                $resolvedValue = DataSourceExtended::getValue($value['source'], $article, $additionalData);
+
                 if (empty($resolvedValue) && isset($value['fallback'])) {
-                    $resolvedValue = \FriendsOfRedaxo\JsonLdManager\Mapping\DataSourceExtended::getValue($value['fallback'], $article, $additionalData);
+                    $resolvedValue = DataSourceExtended::getValue($value['fallback'], $article, $additionalData);
                 }
-                
+
                 if (!empty($resolvedValue)) {
                     $data[$key] = $resolvedValue;
                 }
@@ -461,38 +485,38 @@ class Renderer
                 $data[$key] = $value;
             }
         }
-        
+
         return !empty($data) ? $data : null;
     }
-    
+
     /**
      * Cache löschen
      * 
      * @param int|null $articleId Spezifische Artikel-ID (optional)
      */
-    public static function clearCache($articleId = null)
+    public static function clearCache(?int $articleId = null): void
     {
         if ($articleId) {
             if (class_exists('\rex_cache')) {
-                \rex_cache::delete('jsonld_manager', 'article_'.$articleId);
+                rex_cache::delete('jsonld_manager', 'article_'.$articleId);
             }
         } else {
             if (class_exists('\rex_cache')) {
-                \rex_cache::deleteNamespace('jsonld_manager');
+                rex_cache::deleteNamespace('jsonld_manager');
             }
         }
-        
+
         self::$cache = [];
     }
-    
+
     /**
      * Debug-Information hinzufügen
      * 
      * @param string $type Debug-Typ
      * @param string $message Debug-Nachricht
-     * @param array $data Zusätzliche Daten
+    * @param array<string, mixed> $data Zusätzliche Daten
      */
-    private static function addDebugInfo($type, $message, $data = [])
+    private static function addDebugInfo(string $type, string $message, array $data = []): void
     {
         self::$debugInfo[] = [
             'timestamp' => microtime(true),
@@ -501,30 +525,35 @@ class Renderer
             'data' => $data
         ];
     }
-    
+
     /**
      * Debug-Info zur Browser-Console ausgeben
      * 
      * @param string $message Debug-Nachricht
-     * @param array $data Zusätzliche Daten
+     * @param array<string, mixed> $data Zusätzliche Daten
      */
-    private static function outputConsoleDebug($message, $data = [])
+    private static function outputConsoleDebug(string $message, array $data = []): void
     {
-        // Console-Debug-Ausgabe deaktiviert
-        return;
+        if (!rex::isDebugMode()) {
+            return;
+        }
+
+        \rex_logger::factory()->log(\Psr\Log\LogLevel::DEBUG, $message, [
+            'jsonld_renderer_data' => json_encode($data, JSON_UNESCAPED_UNICODE),
+        ]);
     }
-    
+
     /**
      * Debug-Modal ausgeben (sollte vor </body> eingebunden werden)
      * 
      * @return string Debug-Modal HTML
      */
-    public static function renderDebugModal()
+    public static function renderDebugModal(): string
     {
-        if (empty(self::$debugInfo) || !self::getSetting(\rex_addon::get('jsonld_manager'), 'debug_mode', false)) {
+        if (empty(self::$debugInfo) || !self::getSetting(rex_addon::get('jsonld_manager'), 'debug_mode', false)) {
             return '';
         }
-        
+
         $html = '
         <div id="jsonld-debug-modal" style="
             position: fixed;
@@ -563,11 +592,17 @@ class Renderer
                 padding: 10px;
             ">
         ';
-        
+
         foreach (self::$debugInfo as $info) {
-            $time = date('H:i:s', $info['timestamp']) . substr($info['timestamp'], strpos($info['timestamp'], '.'), 4);
+            $timestamp = (float) $info['timestamp'];
+            $time = date('H:i:s', (int) $timestamp);
+            $timeString = (string) $timestamp;
+            $dotPos = strpos($timeString, '.');
+            if (false !== $dotPos) {
+                $time .= substr($timeString, $dotPos, 4);
+            }
             $typeColor = self::getDebugTypeColor($info['type']);
-            
+
             $html .= '
                 <div style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #444;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
@@ -575,34 +610,35 @@ class Renderer
                         <span style="color: #999; font-size: 10px;">' . $time . '</span>
                     </div>
                     <div style="color: #ddd; margin-bottom: 4px;">' . htmlspecialchars($info['message']) . '</div>';
-            
+
             if (!empty($info['data'])) {
+                $encodedData = json_encode($info['data'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
                 $html .= '<details style="color: #aaa; font-size: 10px;">
                     <summary style="cursor: pointer; color: #888;">Details</summary>
                     <pre style="margin: 4px 0; padding: 4px; background: #1a1a1a; border-radius: 3px; overflow-x: auto;">' . 
-                    htmlspecialchars(json_encode($info['data'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . 
+                    htmlspecialchars(is_string($encodedData) ? $encodedData : '', ENT_QUOTES) . 
                     '</pre>
                 </details>';
             }
-            
+
             $html .= '</div>';
         }
-        
+
         $html .= '
             </div>
         </div>
         ';
-        
+
         return $html;
     }
-    
+
     /**
      * Farbe für Debug-Typ ermitteln
      * 
      * @param string $type Debug-Typ
      * @return string Hex-Farbe
      */
-    private static function getDebugTypeColor($type)
+    private static function getDebugTypeColor(string $type): string
     {
         $colors = [
             'render_start' => '#4CAF50',
@@ -612,19 +648,19 @@ class Renderer
             'schema_load' => '#FF9800',
             'data_mapping' => '#9C27B0'
         ];
-        
+
         return $colors[$type] ?? '#FFC107';
     }
 
     /**
      * Addon-Setting robust laden (unterstützt alte und neue Config-Struktur).
      *
-     * @param \rex_addon $addon
+    * @param \rex_addon_interface $addon
      * @param string $key
      * @param mixed $default
      * @return mixed
      */
-    private static function getSetting(\rex_addon $addon, $key, $default = null)
+    private static function getSetting(\rex_addon_interface $addon, string $key, $default = null)
     {
         $global = $addon->getConfig('global_settings', []);
         if (isset($global['settings']) && array_key_exists($key, $global['settings'])) {
@@ -638,22 +674,24 @@ class Renderer
      * Effektive Branch-ID für Artikel ermitteln.
      *
      * @param int $articleId
-     * @return int|null
+     * @return array<int, int>
      */
-    private static function resolveBranchIdsForArticle($articleId, $clangId = 1)
+    // @phpstan-ignore-next-line bewusst als interne Reserve-API vorhanden
+    private static function resolveBranchIdsForArticle(int $articleId, int $clangId = 1): array
     {
-        return \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::resolveBranchIdsForArticle((int) $articleId, (int) $clangId);
+        return JsonLdGenerator::resolveBranchIdsForArticle($articleId, $clangId);
     }
 
     /**
      * Einheitliches JSON-LD Payload bauen.
      *
-     * @param array $jsonLdItems
-     * @return array
+    * @param array<int, array<string, mixed>> $jsonLdItems
+    * @return array<string, mixed>
      */
-    private static function normalizeOutputPayload(array $jsonLdItems)
+    // @phpstan-ignore-next-line bewusst als interne Reserve-API vorhanden
+    private static function normalizeOutputPayload(array $jsonLdItems): array
     {
-        return \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::buildPayload($jsonLdItems);
+        return JsonLdGenerator::buildPayload($jsonLdItems);
     }
 }
 

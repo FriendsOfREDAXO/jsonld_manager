@@ -4,22 +4,24 @@
  * 
  * Zeigt für jeden Artikel den generierten JSON-LD Output an
  */
-
+use FriendsOfRedaxo\JsonLdManager\LanguageConfig;
+use FriendsOfRedaxo\JsonLdManager\JsonLdGenerator;
 use FriendsOfRedaxo\JsonLdManager\DomainConfig;
 
 $addon = rex_addon::get('jsonld_manager');
-$activeClangId = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId();
+$activeClangId = LanguageConfig::getActiveClangId();
 $activeDomainId = DomainConfig::getActiveDomainId();
 $csrfToken = rex_csrf_token::factory('jsonld_manager');
 $csrfTokenField = $csrfToken->getHiddenField();
 
 function jsonld_manager_custom_json_key(int $articleId, int $clangId): string {
-    return \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::getCustomJsonKey($articleId, $clangId);
+    return JsonLdGenerator::getCustomJsonKey($articleId, $clangId);
 }
 
+/** @return array<int, array{id: int, name: string, is_main: bool}> */
 function getLocalBusinessBranches(): array
 {
-    $activeClangId = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId();
+    $activeClangId = LanguageConfig::getActiveClangId();
     $activeDomainId = DomainConfig::getActiveDomainId();
 
     try {
@@ -46,8 +48,8 @@ function getLocalBusinessBranches(): array
         $branches = [];
         while ($sql->hasNext()) {
             $branches[] = [
-                'id' => $sql->getValue('id'),
-                'name' => $sql->getValue('branch_name'),
+                'id' => (int) $sql->getValue('id'),
+                'name' => (string) $sql->getValue('branch_name'),
                 'is_main' => (bool) $sql->getValue('is_main_branch')
             ];
             $sql->next();
@@ -72,14 +74,14 @@ if (rex_request('ajax', 'string') === 'update_branch_json') {
     
     if ($articleId > 0) {
         // Branch-Auswahl für diesen Artikel speichern
-        rex_config::set('jsonld_manager', jsonld_manager_article_branch_key($articleId, \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId()), $branchIdsAjax);
+        rex_config::set('jsonld_manager', jsonld_manager_article_branch_key($articleId, LanguageConfig::getActiveClangId()), $branchIdsAjax);
         
         // JSON-LD mit derselben Ausgabe-Pipeline wie Frontend/Backend-Vorschau generieren.
-        $jsonldOutput = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::getArticleOutput(
+        $jsonldOutput = JsonLdGenerator::getArticleOutput(
             $articleId,
             null,
             true,
-            \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId()
+            LanguageConfig::getActiveClangId()
         );
         
         rex_response::sendJson([
@@ -108,20 +110,25 @@ if ($branchId > 0 && $selectedArticleId > 0) {
 }
 
 // Funktion für hierarchische Struktur-Verarbeitung (mit Ebenen)
-function addArticlesFromCategoryHierarchical($category, &$articles, &$addedIds = [], $level = 0, $parentCategory = null) {
+/**
+ * @param rex_category|null $category
+ * @param array<int, array<string, mixed>> $articles
+ * @param array<int, int> $addedIds
+ */
+function addArticlesFromCategoryHierarchical(?rex_category $category, array &$articles, array &$addedIds = [], int $level = 0, ?rex_category $parentCategory = null): void {
     // Startartikel der Kategorie hinzufügen (nur wenn noch nicht vorhanden)
     if ($category && !in_array($category->getId(), $addedIds)) {
         $articles[] = [
             'id' => $category->getId(),
             'name' => $category->getName(),
-            'yrewrite_title' => \rex_addon::get('yrewrite')->isAvailable() ? $category->getValue('yrewrite_title') : '',
+            'yrewrite_title' => rex_addon::get('yrewrite')->isAvailable() ? $category->getValue('yrewrite_title') : '',
             'category' => $parentCategory ? $parentCategory->getName() : 'Hauptebene',
             'parent_id' => $category->getParentId(),
             'url' => $category->getUrl(),
             'createdate' => $category->getCreateDate(),
             'updatedate' => $category->getUpdateDate(),
-            'yrewrite_description' => \rex_addon::get('yrewrite')->isAvailable() ? $category->getValue('yrewrite_description') : '',
-            'yrewrite_image' => \rex_addon::get('yrewrite')->isAvailable() ? $category->getValue('yrewrite_image') : '',
+            'yrewrite_description' => rex_addon::get('yrewrite')->isAvailable() ? $category->getValue('yrewrite_description') : '',
+            'yrewrite_image' => rex_addon::get('yrewrite')->isAvailable() ? $category->getValue('yrewrite_image') : '',
             'status' => $category->isOnline() ? 'online' : 'offline',
             'level' => $level,
             'priority' => $category->getPriority()
@@ -136,14 +143,14 @@ function addArticlesFromCategoryHierarchical($category, &$articles, &$addedIds =
             $articles[] = [
                 'id' => $article->getId(),
                 'name' => $article->getName(),
-                'yrewrite_title' => \rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_title') : '',
-                'category' => $category ? $category->getName() : 'Keine Kategorie',
+                'yrewrite_title' => rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_title') : '',
+                'category' => $category->getName(),
                 'parent_id' => $article->getCategoryId(),
                 'url' => $article->getUrl(),
                 'createdate' => $article->getCreateDate(),
                 'updatedate' => $article->getUpdateDate(),
-                'yrewrite_description' => \rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_description') : '',
-                'yrewrite_image' => \rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_image') : '',
+                'yrewrite_description' => rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_description') : '',
+                'yrewrite_image' => rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_image') : '',
                 'status' => $article->isOnline() ? 'online' : 'offline',
                 'level' => $level + 1, // Artikel sind eine Ebene tiefer als ihre Kategorie
                 'priority' => $article->getPriority()
@@ -154,8 +161,8 @@ function addArticlesFromCategoryHierarchical($category, &$articles, &$addedIds =
     
     // Rekursiv für Unterkategorien (sortiert nach Priorität)
     $subCategories = $category ? $category->getChildren() : [];
-    usort($subCategories, function($a, $b) {
-        return $a->getPriority() - $b->getPriority();
+    usort($subCategories, function(rex_category $a, rex_category $b): int {
+        return $a->getPriority() <=> $b->getPriority();
     });
     
     foreach ($subCategories as $subCategory) {
@@ -164,20 +171,25 @@ function addArticlesFromCategoryHierarchical($category, &$articles, &$addedIds =
 }
 
 // Funktion für rekursive Struktur-Verarbeitung
-function addArticlesFromCategory($category, &$articles, &$addedIds = []) {
+/**
+ * @param rex_category|null $category
+ * @param array<int, array<string, mixed>> $articles
+ * @param array<int, int> $addedIds
+ */
+function addArticlesFromCategory(?rex_category $category, array &$articles, array &$addedIds = []): void {
     // Startartikel der Kategorie hinzufügen (nur wenn noch nicht vorhanden)
     if ($category && !in_array($category->getId(), $addedIds)) {
         $articles[] = [
             'id' => $category->getId(),
             'name' => $category->getName(),
-            'yrewrite_title' => \rex_addon::get('yrewrite')->isAvailable() ? $category->getValue('yrewrite_title') : '',
+            'yrewrite_title' => rex_addon::get('yrewrite')->isAvailable() ? $category->getValue('yrewrite_title') : '',
             'category' => $category->getParent() ? $category->getParent()->getName() : 'Hauptebene',
             'parent_id' => $category->getParentId(),
             'url' => $category->getUrl(),
             'createdate' => $category->getCreateDate(),
             'updatedate' => $category->getUpdateDate(),
-            'yrewrite_description' => \rex_addon::get('yrewrite')->isAvailable() ? $category->getValue('yrewrite_description') : '',
-            'yrewrite_image' => \rex_addon::get('yrewrite')->isAvailable() ? $category->getValue('yrewrite_image') : '',
+            'yrewrite_description' => rex_addon::get('yrewrite')->isAvailable() ? $category->getValue('yrewrite_description') : '',
+            'yrewrite_image' => rex_addon::get('yrewrite')->isAvailable() ? $category->getValue('yrewrite_image') : '',
             'status' => $category->isOnline() ? 'online' : 'offline',
             'level' => 0, // Level hinzufügen für Kompatibilität
             'priority' => $category->getPriority()
@@ -192,14 +204,14 @@ function addArticlesFromCategory($category, &$articles, &$addedIds = []) {
             $articles[] = [
                 'id' => $article->getId(),
                 'name' => $article->getName(),
-                'yrewrite_title' => \rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_title') : '',
-                'category' => $category ? $category->getName() : 'Keine Kategorie',
+                'yrewrite_title' => rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_title') : '',
+                'category' => $category->getName(),
                 'parent_id' => $article->getCategoryId(),
                 'url' => $article->getUrl(),
                 'createdate' => $article->getCreateDate(),
                 'updatedate' => $article->getUpdateDate(),
-                'yrewrite_description' => \rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_description') : '',
-                'yrewrite_image' => \rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_image') : '',
+                'yrewrite_description' => rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_description') : '',
+                'yrewrite_image' => rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_image') : '',
                 'status' => $article->isOnline() ? 'online' : 'offline',
                 'level' => 1, // Level hinzufügen für Kompatibilität
                 'priority' => $article->getPriority()
@@ -231,14 +243,14 @@ if (DomainConfig::isMultiDomain()) {
             $articles[] = [
                 'id' => $startArticle->getId(),
                 'name' => $startArticle->getName(),
-                'yrewrite_title' => \rex_addon::get('yrewrite')->isAvailable() ? $startArticle->getValue('yrewrite_title') : '',
+                'yrewrite_title' => rex_addon::get('yrewrite')->isAvailable() ? $startArticle->getValue('yrewrite_title') : '',
                 'category' => 'Domain-Startseite',
                 'parent_id' => 0,
                 'url' => $startArticle->getUrl(),
                 'createdate' => $startArticle->getCreateDate(),
                 'updatedate' => $startArticle->getUpdateDate(),
-                'yrewrite_description' => \rex_addon::get('yrewrite')->isAvailable() ? $startArticle->getValue('yrewrite_description') : '',
-                'yrewrite_image' => \rex_addon::get('yrewrite')->isAvailable() ? $startArticle->getValue('yrewrite_image') : '',
+                'yrewrite_description' => rex_addon::get('yrewrite')->isAvailable() ? $startArticle->getValue('yrewrite_description') : '',
+                'yrewrite_image' => rex_addon::get('yrewrite')->isAvailable() ? $startArticle->getValue('yrewrite_image') : '',
                 'status' => $startArticle->isOnline() ? 'online' : 'offline',
                 'level' => 0, // Domain-Root-Level
                 'priority' => $startArticle->getPriority()
@@ -267,8 +279,8 @@ if (DomainConfig::isMultiDomain()) {
     $categories = rex_category::getRootCategories();
     
     // Kategorien nach Priorität sortieren
-    usort($categories, function($a, $b) {
-        return $a->getPriority() - $b->getPriority();
+    usort($categories, function(rex_category $a, rex_category $b): int {
+        return $a->getPriority() <=> $b->getPriority();
     });
     
     // Root-Artikel hinzufügen (ohne Kategorie) - auch offline
@@ -278,14 +290,14 @@ if (DomainConfig::isMultiDomain()) {
             $articles[] = [
                 'id' => $article->getId(),
                 'name' => $article->getName(),
-                'yrewrite_title' => \rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_title') : '',
+                'yrewrite_title' => rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_title') : '',
                 'category' => 'Hauptebene',
                 'parent_id' => 0,
                 'url' => $article->getUrl(),
                 'createdate' => $article->getCreateDate(),
                 'updatedate' => $article->getUpdateDate(),
-                'yrewrite_description' => \rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_description') : '',
-                'yrewrite_image' => \rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_image') : '',
+                'yrewrite_description' => rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_description') : '',
+                'yrewrite_image' => rex_addon::get('yrewrite')->isAvailable() ? $article->getValue('yrewrite_image') : '',
                 'status' => $article->isOnline() ? 'online' : 'offline',
                 'level' => 0, // Root-Level
                 'priority' => $article->getPriority()
@@ -302,7 +314,7 @@ if (DomainConfig::isMultiDomain()) {
 
 // Wenn kein Artikel ausgewählt, ersten nehmen
 if ($selectedArticleId === 0 && !empty($articles)) {
-    $selectedArticleId = $articles[0]['id'];
+    $selectedArticleId = (int) $articles[0]['id'];
 }
 
 // Custom JSON Form-Verarbeitung
@@ -387,11 +399,11 @@ foreach ($articles as $article) {
     $levelClass = $level > 0 ? ' article-level-' . $level : '';
     
     // Prüfen ob Custom JSON für diesen Artikel existiert
-    $hasCustomJson = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::hasCustomJson((int) $article['id'], $activeClangId);
-    $isJsonDisabled = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::isArticleJsonDisabled((int) $article['id'], $activeClangId);
+    $hasCustomJson = JsonLdGenerator::hasCustomJson((int) $article['id'], $activeClangId);
+    $isJsonDisabled = JsonLdGenerator::isArticleJsonDisabled((int) $article['id'], $activeClangId);
     
     // Anzahl zusätzlicher Nicht-Hauptstandortn ermitteln
-    $assignedBranchIds = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::getArticleBranchIds((int) $article['id'], $activeClangId);
+    $assignedBranchIds = JsonLdGenerator::getArticleBranchIds((int) $article['id'], $activeClangId);
     $nonMainBranchCount = 0;
     if (!empty($assignedBranchIds)) {
         // Prüfen wie viele zugeordnete Standorte keine Hauptstandort sind
@@ -449,7 +461,7 @@ if (empty($articles)) {
 }
 
 // HTML in String sammeln für Fragment-System
-$content = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::renderClangTabs($activeClangId) . '';
+$content = LanguageConfig::renderClangTabs($activeClangId) . '';
 
 $jsonLdOutput = '';
 $isCustomJson = false;
@@ -457,9 +469,9 @@ $isJsonDisabled = false;
 $customJsonRaw = '';
 
 if ($selectedArticle) {
-    $customJsonRaw = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::getCustomJson((int) $selectedArticleId, $activeClangId);
+    $customJsonRaw = JsonLdGenerator::getCustomJson((int) $selectedArticleId, $activeClangId);
     $branchOverride = $branchId > 0 ? [$branchId] : null;
-    $articleOutput = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::getArticleOutput(
+    $articleOutput = JsonLdGenerator::getArticleOutput(
         (int) $selectedArticleId,
         $branchOverride,
         true,
@@ -490,7 +502,7 @@ if ($selectedArticle && $jsonLdOutput) {
     }
 }
 
-$content = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::renderClangTabs($activeClangId) . '
+$content = LanguageConfig::renderClangTabs($activeClangId) . '
 
 <div class="row">
     <div class="col-md-6">
@@ -548,7 +560,7 @@ $content = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::renderClangTabs($activ
                             <i class="fa fa-sliders"></i> Custom JSON ' . ($isCustomJson ? '✓' : '') . '
                         </button>
                         <a href="https://search.google.com/test/rich-results?url=" 
-                           onclick="this.href += encodeURIComponent(\'' . (\rex_addon::get('yrewrite')->isAvailable() 
+                           onclick="this.href += encodeURIComponent(\'' . (rex_addon::get('yrewrite')->isAvailable() 
                                ? rex_yrewrite::getFullUrlByArticleId($selectedArticleId) 
                                : rex_url::frontendController() . '?article_id=' . $selectedArticleId) . '\')" 
                            target="_blank" 
@@ -558,13 +570,11 @@ $content = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::renderClangTabs($activ
                     </div>
                     
                     <!-- LocalBusiness Select darunter, auch rechtsbündig -->
-                    ' . (function() use ($selectedArticle, $selectedArticleId, $branchId, $activeClangId) {
+                    ' . (function() use ($selectedArticleId, $branchId, $activeClangId): string {
                         $branches = getLocalBusinessBranches();
-                        if (!empty($branches) && count($branches) > 1) {
+                            if (count($branches) > 1) {
                             $savedBranchIds = [];
-                            if ($selectedArticle) {
-                                $savedBranchIds = \FriendsOfRedaxo\JsonLdManager\JsonLdGenerator::resolveBranchIdsForArticle((int) $selectedArticleId, $activeClangId);
-                            }
+                                $savedBranchIds = JsonLdGenerator::resolveBranchIdsForArticle((int) $selectedArticleId, $activeClangId);
                             $effectiveBranchIds = $savedBranchIds;
                             if ($branchId > 0 && !in_array($branchId, $effectiveBranchIds)) {
                                 $effectiveBranchIds[] = $branchId;
@@ -601,7 +611,7 @@ $content = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::renderClangTabs($activ
             </div>' : '') . '
             
             <!-- JSON-LD Output -->
-            ' . ($selectedArticle ? '
+            ' . '
             <!-- Custom JSON Editor (initially hidden) -->
             <div id="custom-json-editor" style="display: none; margin-bottom: 15px;">
                 <div class="panel panel-warning">
@@ -631,7 +641,8 @@ $content = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::renderClangTabs($activ
                         </form>') . '
                     </div>
                 </div>
-            </div>' : '') . '
+            </div>
+            ' . '
             
             <pre id="json-preview">' . $jsonPreviewContent . '</pre>
         </div>

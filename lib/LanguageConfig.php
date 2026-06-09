@@ -2,13 +2,18 @@
 
 namespace FriendsOfRedaxo\JsonLdManager;
 
+use rex_clang;
+use rex_addon_interface;
+use rex_url;
+
 class LanguageConfig
 {
     private const SESSION_KEY = 'jsonld_manager_active_clang_id';
 
+    /** @return array<int, rex_clang> */
     public static function getClangs(): array
     {
-        return \rex_clang::getAll(true);
+        return rex_clang::getAll(true);
     }
 
     public static function isMultilingual(): bool
@@ -22,8 +27,8 @@ class LanguageConfig
         if ($requested <= 0) {
             $requested = \rex_request('clang_id', 'int', 0);
         }
-        if ($requested > 0 && \rex_clang::exists($requested)) {
-            $clang = \rex_clang::get($requested);
+        if ($requested > 0 && rex_clang::exists($requested)) {
+            $clang = rex_clang::get($requested);
             if ($clang && $clang->isOnline()) {
                 \rex_set_session(self::SESSION_KEY, $requested);
                 return $requested;
@@ -31,19 +36,23 @@ class LanguageConfig
         }
 
         $sessionClangId = (int) \rex_session(self::SESSION_KEY, 'int', 0);
-        if ($sessionClangId > 0 && \rex_clang::exists($sessionClangId)) {
-            $sessionClang = \rex_clang::get($sessionClangId);
+        if ($sessionClangId > 0 && rex_clang::exists($sessionClangId)) {
+            $sessionClang = rex_clang::get($sessionClangId);
             if ($sessionClang && $sessionClang->isOnline()) {
                 return $sessionClangId;
             }
         }
 
-        $fallbackClangId = \rex_clang::getCurrentId();
+        $fallbackClangId = rex_clang::getCurrentId();
         \rex_set_session(self::SESSION_KEY, $fallbackClangId);
         return $fallbackClangId;
     }
 
-    public static function getLocalizedConfig(\rex_addon $addon, string $baseKey, int $clangId, array $default = []): array
+    /**
+     * @param array<string, mixed> $default
+     * @return array<string, mixed>
+     */
+    public static function getLocalizedConfig(rex_addon_interface $addon, string $baseKey, int $clangId, array $default = []): array
     {
         $localized = $addon->getConfig(self::localizedKey($baseKey, $clangId), null);
         if (is_array($localized)) {
@@ -58,7 +67,8 @@ class LanguageConfig
         return $default;
     }
 
-    public static function setLocalizedConfig(\rex_addon $addon, string $baseKey, int $clangId, array $config): void
+    /** @param array<string, mixed> $config */
+    public static function setLocalizedConfig(rex_addon_interface $addon, string $baseKey, int $clangId, array $config): void
     {
         $addon->setConfig(self::localizedKey($baseKey, $clangId), $config);
     }
@@ -108,7 +118,7 @@ class LanguageConfig
         foreach (self::getClangs() as $clang) {
             $clangId = (int) $clang->getId();
             $isActive = $clangId === $activeClangId;
-            $url = \rex_url::currentBackendPage(['clang' => $clangId]);
+            $url = rex_url::currentBackendPage(['clang' => $clangId]);
             $label = htmlspecialchars((string) $clang->getName());
             $html .= '<a href="' . $url . '" class="btn btn-clang' . ($isActive ? ' active' : '') . '"><i class="rex-icon rex-icon-online"></i>' . $label . '</a>';
         }

@@ -2,26 +2,26 @@
 /**
  * JSON-LD Manager - WebSite Schema
  */
-
+use FriendsOfRedaxo\JsonLdManager\LanguageConfig;
 use FriendsOfRedaxo\JsonLdManager\DomainConfig;
 use FriendsOfRedaxo\JsonLdManager\CustomJsonLdHelper;
 
 $websiteAction = rex_post('website_action', 'string', '');
 $websiteSaveError = '';
-$currentClang = rex_clang::getCurrent();
-$autoLanguageCode = $currentClang ? (string) $currentClang->getCode() : 'de';
+$currentClang = rex_clang::get((int) rex_clang::getCurrentId());
+$autoLanguageCode = $currentClang instanceof rex_clang ? (string) $currentClang->getCode() : 'de';
 $addon = rex_addon::get('jsonld_manager');
-$activeClangId = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getActiveClangId();
+$activeClangId = LanguageConfig::getActiveClangId();
 $activeDomainId = DomainConfig::getActiveDomainId();
 $csrfToken = rex_csrf_token::factory('jsonld_manager_global_website');
 $csrfTokenField = $csrfToken->getHiddenField();
 
 // Website-URL basierend auf aktiver Domain ermitteln
-function getWebsiteUrlForDomain($domainId = null): string {
+function getWebsiteUrlForDomain(?int $domainId = null): string {
     if (DomainConfig::isMultiDomain() && $domainId) {
         $activeDomain = DomainConfig::getActiveDomain();
         if ($activeDomain && isset($activeDomain['domain'])) {
-            $domain = $activeDomain['domain'];
+            $domain = (string) $activeDomain['domain'];
             // Prüfen ob Domain bereits Protokoll enthält
             if (strpos($domain, 'http') !== 0) {
                 // Prüfen ob https oder http
@@ -63,8 +63,8 @@ if ($websiteAction === 'save') {
             'target' => $searchUrl,
             'enabled' => $searchEnabled,
         ],
-        'custom_jsonld_raw' => $customJsonResult['raw'] ?? '',
-        'custom_jsonld' => $customJsonResult['data'] ?? [],
+        'custom_jsonld_raw' => $customJsonResult['raw'],
+        'custom_jsonld' => $customJsonResult['data'],
     ];
 
     if ($websiteSaveError === '') {
@@ -73,7 +73,7 @@ if ($websiteAction === 'save') {
             $configKey = 'website_schema_domain_' . $activeDomainId . '_clang_' . $activeClangId;
             $addon->setConfig($configKey, $config);
         } else {
-            \FriendsOfRedaxo\JsonLdManager\LanguageConfig::setLocalizedConfig($addon, 'website_schema', $activeClangId, $config);
+            LanguageConfig::setLocalizedConfig($addon, 'website_schema', $activeClangId, $config);
         }
         echo rex_view::success('WebSite Schema wurde gespeichert.');
         if (!empty($customJsonResult['warnings'])) {
@@ -91,14 +91,18 @@ if (DomainConfig::isMultiDomain()) {
     $websiteConfig = $addon->getConfig($configKey, []);
     // Fallback zu sprachspezifischer Konfiguration wenn domain-spezifische nicht existiert
     if (empty($websiteConfig)) {
-        $websiteConfig = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getLocalizedConfig($addon, 'website_schema', $activeClangId, []);
+        $websiteConfig = LanguageConfig::getLocalizedConfig($addon, 'website_schema', $activeClangId, []);
     }
 } else {
-    $websiteConfig = \FriendsOfRedaxo\JsonLdManager\LanguageConfig::getLocalizedConfig($addon, 'website_schema', $activeClangId, []);
+    $websiteConfig = LanguageConfig::getLocalizedConfig($addon, 'website_schema', $activeClangId, []);
 }
 
 // Funktion zur Generierung der Website JSON-LD Daten
-function generateWebsiteJsonLd($websiteConfig, $autoLanguageCode) {
+/**
+ * @param array<string, mixed> $websiteConfig
+ * @return array<string, mixed>|null
+ */
+function generateWebsiteJsonLd(array $websiteConfig, string $autoLanguageCode): ?array {
     if (empty($websiteConfig)) {
         return null;
     }
@@ -143,10 +147,13 @@ function generateWebsiteJsonLd($websiteConfig, $autoLanguageCode) {
 // JSON-LD Daten für die Vorschau generieren
 $currentJsonLd = generateWebsiteJsonLd($websiteConfig, $autoLanguageCode);
 $initialJsonOutput = $currentJsonLd ? json_encode($currentJsonLd, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) : '// Noch keine Konfiguration vorhanden\n// Füllen Sie das Formular aus, um eine JSON-LD Vorschau zu erhalten';
+if (!is_string($initialJsonOutput)) {
+    $initialJsonOutput = '// JSON-LD konnte nicht erstellt werden';
+}
 
 ob_start();
 
-echo \FriendsOfRedaxo\JsonLdManager\LanguageConfig::renderClangTabs($activeClangId);
+echo LanguageConfig::renderClangTabs($activeClangId);
 
 echo '<style>
 .jsonld-preview-col {

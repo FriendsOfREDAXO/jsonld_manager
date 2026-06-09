@@ -3,6 +3,31 @@
 
 Dieses Changelog wird ab Version `1.0.0` neu geführt.
 
+## v1.0.0.beta.19 (08. Juni 2026)
+
+### Added
+- Umfassende Rexstan-Qualitätsrunde über das gesamte Addon durchgeführt und final auf fehlerfreien Stand gebracht.
+- Zusätzliche Härtung für JavaScript-Datenübergabe in der URL-Mapping-Konfiguration ergänzt: JSON-Werte werden jetzt vorab berechnet und mit sicheren Fallbacks ausgegeben, damit fehlerhafte Eingabedaten kein ungültiges Inline-Skript erzeugen.
+
+### Changed
+- Signaturen, Typangaben und Rückgabetypen in zentralen Klassen und Backend-Seiten konsolidiert, um Laufzeitverhalten und statische Analyse in Einklang zu bringen.
+- JSON-Decode-/Encode-Grenzen in mehreren Flows vereinheitlicht und defensiver umgesetzt.
+- Interne Generator-Pfade für dynamische JSON-LD-Ausgabe bereinigt und auf konsistente Payload-Erzeugung umgestellt.
+- Backend-Controller- und Formularlogik für Artikel-, Dynamic-URL-, WebSite- und LocalBusiness-Seiten strukturell verbessert, ohne öffentliche API zu ändern.
+
+### Fixed
+- Mehrere potenzielle Laufzeitprobleme bei gemischten Datentypen behoben (insbesondere bei Mapping-, Config- und Vorschaupfaden).
+- Fehlerhafte bzw. fragile JSON-LD-Skriptgenerierung in dynamischen Fällen korrigiert.
+- Statische Analysewarnungen zu Array-Shapes, immer-wahren Bedingungen und uneindeutigen Typpfaden in relevanten Dateien beseitigt.
+- Kontaktpunkt-Filterung im LocalBusiness-Flow so angepasst, dass nur tatsächlich leere Werte entfernt werden und der Rest stabil bleibt.
+
+### Quality
+- Vollständiger Rexstan-Lauf auf Addon-Ebene erfolgreich abgeschlossen: keine verbleibenden Fehler.
+- Bestehende Funktionalität wurde dabei rückwärtskompatibel weitergeführt (kein BC-Break in Konfiguration oder Ausgabeformat beabsichtigt).
+
+### Notes
+- Diese Version ist ein technischer Stabilisierungs- und Qualitätsrelease, der die Grundlage für die nächsten Feature-Schritte verbessert.
+
 ## v1.0.0.beta.18 (08. Juni 2026)
 
 ### Fixed

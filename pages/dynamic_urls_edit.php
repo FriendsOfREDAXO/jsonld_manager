@@ -19,19 +19,19 @@ $profile = $profile[0];
 
 // Echte YForm-Tabelle aus table_parameters extrahieren
 $yformTableName = null;
-if ($profile['table_parameters']) {
-    $tableParams = json_decode($profile['table_parameters'], true);
+if (!empty($profile['table_parameters'])) {
+    $tableParams = json_decode((string) $profile['table_parameters'], true);
     if ($tableParams && !empty($tableParams['table_name'])) {
-        $yformTableName = $tableParams['table_name'];
+        $yformTableName = (string) $tableParams['table_name'];
     }
 }
 
 // Fallback: Korrigiere Tabellenname (entferne 1_xxx_ Prefix)  
 if (!$yformTableName) {
-    $yformTableName = str_replace('1_xxx_', '', $profile['table_name']);
+    $yformTableName = str_replace('1_xxx_', '', (string) ($profile['table_name'] ?? ''));
 }
 
-if (!is_string($yformTableName) || preg_match('/^[A-Za-z0-9_]+$/', $yformTableName) !== 1) {
+if (preg_match('/^[A-Za-z0-9_]+$/', $yformTableName) !== 1) {
     echo rex_view::error('Ungültiger oder unsicherer Tabellenname im URL-Profil.');
     return;
 }
@@ -66,7 +66,7 @@ if (rex_post('save', 'string') === '1') {
         if (count($mapping) > 0) {
             // Update
             $sql->setTable(rex::getTable('jsonld_url_profile_mappings'));
-            $sql->setWhere(['id' => $mapping[0]['id']]);
+            $sql->setWhere(['id' => (int) ($mapping[0]['id'] ?? 0)]);
         } else {
             // Insert
             $sql->setTable(rex::getTable('jsonld_url_profile_mappings'));
@@ -106,7 +106,7 @@ try {
     $tableFields = rex_sql::factory()->getArray('DESCRIBE ' . $yformTableName);
 } catch (rex_sql_exception $e) {
     // Fallback: Aus table_parameters laden
-    if ($profile['table_parameters']) {
+    if (!empty($profile['table_parameters']) && is_string($profile['table_parameters'])) {
         $tableParams = json_decode($profile['table_parameters'], true);
         
         if ($tableParams) {
@@ -278,12 +278,20 @@ $schemaProperties = [
 ];
 
 // Config laden falls vorhanden
-$config = [];
+$config = [
+    'schema_type' => '',
+    'active' => 1,
+    'field_mappings' => [],
+];
 if (!empty($mapping)) {
+    $fieldMappingsConfig = [];
+    if (isset($mapping[0]['field_mappings']) && is_string($mapping[0]['field_mappings'])) {
+        $fieldMappingsConfig = json_decode($mapping[0]['field_mappings'], true) ?: [];
+    }
     $config = [
-        'schema_type' => $mapping[0]['schema_type'] ?? '',
-        'active' => $mapping[0]['active'] ?? 1,
-        'field_mappings' => json_decode($mapping[0]['field_mappings'] ?? '{}', true)
+        'schema_type' => (string) ($mapping[0]['schema_type'] ?? ''),
+        'active' => (int) ($mapping[0]['active'] ?? 1),
+        'field_mappings' => is_array($fieldMappingsConfig) ? $fieldMappingsConfig : [],
     ];
 }
 
@@ -394,13 +402,35 @@ $fragment->setVar('title', 'JSON-LD Schema für URL-Profil: ' . rex_escape($prof
 $fragment->setVar('body', $content, false);
 echo $fragment->parse('core/page/section.php');
 
+$schemaPropertiesJson = json_encode($schemaProperties, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+$tableFieldsJson = json_encode(array_column($tableFields, 'Field'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+$sampleDataJson = json_encode($sampleData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+$profileNamespaceJson = json_encode((string) ($profile['namespace'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+$savedMappingsJson = json_encode($config['field_mappings'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+if (!is_string($schemaPropertiesJson)) {
+    $schemaPropertiesJson = '{}';
+}
+if (!is_string($tableFieldsJson)) {
+    $tableFieldsJson = '[]';
+}
+if (!is_string($sampleDataJson)) {
+    $sampleDataJson = '{}';
+}
+if (!is_string($profileNamespaceJson)) {
+    $profileNamespaceJson = '""';
+}
+if (!is_string($savedMappingsJson)) {
+    $savedMappingsJson = '{}';
+}
+
 ?>
 <script>
 // Schema-Properties und Sample-Daten für JavaScript verfügbar machen
-const schemaProperties = <?= json_encode($schemaProperties) ?>;
-const tableFields = <?= json_encode(array_column($tableFields, 'Field')) ?>;
-const sampleData = <?= json_encode($sampleData) ?>;
-const profileNamespace = <?= json_encode($profile['namespace']) ?>;
+const schemaProperties = <?= $schemaPropertiesJson ?>;
+const tableFields = <?= $tableFieldsJson ?>;
+const sampleData = <?= $sampleDataJson ?>;
+const profileNamespace = <?= $profileNamespaceJson ?>;
 
 // Field-Mappings Object für Live-Updates
 let fieldMappings = {};
@@ -560,7 +590,7 @@ document.addEventListener("DOMContentLoaded", function() {
         $('#schema_type').selectpicker();
     }
     
-    const savedMappings = <?= json_encode($config['field_mappings'] ?? []) ?>;
+    const savedMappings = <?= $savedMappingsJson ?>;
     
     // Mappings wiederherstellen
     if (Object.keys(savedMappings).length > 0) {
