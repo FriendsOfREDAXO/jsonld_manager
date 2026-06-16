@@ -68,9 +68,9 @@ Die übrigen Optionen helfen dabei:
 - `Validierung` prüft die JSON-Syntax
 - `Debug-Modus` hilft bei der Kontrolle während der Entwicklung
 
-### 3a. Sprache kopieren (Einstellungen)
+### 3a. Sprachangaben kopieren (Einstellungen)
 
-Im Bereich `Einstellungen` steht bei mehrsprachigen Projekten die Funktion `Sprache kopieren` zur Verfügung.
+Im Bereich `Einstellungen` steht bei mehrsprachigen Projekten die Funktion `Sprachangaben kopieren` zur Verfügung.
 
 Damit kannst du eine vollständige sprachabhängige JSON-LD-Konfiguration von einer Quellsprache in eine Zielsprache übernehmen.
 
@@ -88,6 +88,10 @@ Wichtiges Verhalten:
 Empfehlung:
 
 - Die Funktion nur bewusst einsetzen (z. B. initiale Sprachanlage oder kompletter Relaunch einer Sprache), da sie die Zielsprache überschreibt.
+
+Hinweis:
+
+- Die Seite `Sprachangaben kopieren` wird nur angezeigt, wenn im System mehr als eine Sprache vorhanden ist.
 
 ### 4. Optional: Dynamische URLs
 

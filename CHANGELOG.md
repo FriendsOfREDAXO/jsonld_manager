@@ -3,6 +3,23 @@
 
 Dieses Changelog wird ab Version `1.0.0` neu geführt.
 
+## v1.0.0.beta.20 (16. Juni 2026)
+
+### Added
+- Eigene Unterseite `Sprachangaben kopieren` im Bereich `Einstellungen` ergänzt, um sprachabhängige JSON-LD-Inhalte getrennt von den allgemeinen Settings zu verwalten.
+- Sprachkopier-Funktion im Backend optisch an die übrigen AddOn-Seiten angepasst.
+
+### Changed
+- Sprachkopier-Flow aus der Settings-Seite herausgelöst und als eigene Seite geführt.
+- Tab- und Button-Beschriftung von `Sprache kopieren` auf `Sprachangaben kopieren` vereinheitlicht.
+- Sprachkopier-Seite wird nur angezeigt, wenn im System mehr als eine Sprache vorhanden ist.
+- Settings-Seite bereinigt, damit dort nur noch allgemeine Konfigurationen bearbeitet werden.
+
+### Fixed
+- Unbeabsichtigte Wechselwirkungen zwischen Settings-Speichern und Sprachkopier-Formular beseitigt.
+- Sprachkopier-Formular so umgebaut, dass es nicht mehr in den Settings-Submit hineinwirkt.
+- Update-Meldungen des AddOns werden nicht mehr an einer falschen Stelle ausgegeben, sondern in den üblichen Installations-/Update-Kontext integriert.
+
 ## v1.0.0.beta.19 (08. Juni 2026)
 
 ### Added

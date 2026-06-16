@@ -431,9 +431,6 @@ if (function_exists('rex_delete_cache')) {
     $addon->clearCache();
 }
 
-echo rex_view::success(
-    '<h4>JSON-LD Manager Update erfolgreich</h4>'
-    . '<p><strong>Version ' . htmlspecialchars($installedVersion) . ' → ' . htmlspecialchars($currentVersion) . '</strong></p>'
-    . '<ul><li>' . implode('</li><li>', array_map('htmlspecialchars', array_unique($updates))) . '</li></ul>'
-    . '<p>Bestehende Daten und Konfigurationen wurden beibehalten.</p>'
+rex_logger::factory()->info(
+    'JSON-LD Manager updated from ' . $installedVersion . ' to ' . $currentVersion . ': ' . implode(' | ', array_unique($updates))
 );

@@ -140,6 +140,34 @@ if (rex::isBackend()) {
         }
     };
 
+    $hideLanguageCopySubpage = static function (): void {
+        $filter = static function ($page): void {
+            if (!$page instanceof rex_be_page) {
+                return;
+            }
+
+            $subpages = $page->getSubpages();
+
+            foreach ($subpages as $key => $subpage) {
+                $subpageKey = (string) $subpage->getKey();
+                $subpageFullKey = (string) $subpage->getFullKey();
+                if ($subpageKey === 'language-copy' || $subpageFullKey === 'jsonld_manager/language-copy') {
+                    unset($subpages[$key]);
+                }
+            }
+
+            $page->setSubpages($subpages);
+        };
+
+        $filter(rex_be_controller::getPageObject('jsonld_manager'));
+
+        $current = rex_be_controller::getCurrentPageObject();
+        if ($current instanceof rex_be_page) {
+            $filter($current);
+            $filter($current->getParent());
+        }
+    };
+
     $shouldHideDynamicUrls = static function (): bool {
         if (!rex_addon::get('url')->isAvailable()) {
             return true;
@@ -148,28 +176,44 @@ if (rex::isBackend()) {
         return !$profileCount || (int) $profileCount[0]['count'] === 0;
     };
 
+    $shouldHideLanguageCopy = static function (): bool {
+        return count(rex_clang::getAll(true)) <= 1;
+    };
+
     // Harte UI-Fallback-Ausblendung, falls REDAXO-Navigation den Tab dennoch rendert
     if ($shouldHideDynamicUrls()) {
         rex_view::addCssFile(rex_url::addonAssets('jsonld_manager', 'css/hide_dynamic_urls_tab.css'));
     }
 
-    rex_extension::register('PACKAGES_INCLUDED', function() use ($hideDynamicUrlsSubpage, $shouldHideDynamicUrls): void {
+    rex_extension::register('PACKAGES_INCLUDED', function() use ($hideDynamicUrlsSubpage, $hideLanguageCopySubpage, $shouldHideDynamicUrls, $shouldHideLanguageCopy): void {
         if ($shouldHideDynamicUrls()) {
             $hideDynamicUrlsSubpage();
         }
+        if ($shouldHideLanguageCopy()) {
+            $hideLanguageCopySubpage();
+        }
     });
 
-    rex_extension::register('PAGE_PREPARED', function() use ($hideDynamicUrlsSubpage, $shouldHideDynamicUrls): void {
+    rex_extension::register('PAGE_PREPARED', function() use ($hideDynamicUrlsSubpage, $hideLanguageCopySubpage, $shouldHideDynamicUrls, $shouldHideLanguageCopy): void {
         if (!$shouldHideDynamicUrls()) {
-            return;
+            // no-op
         }
 
-        $hideDynamicUrlsSubpage();
+        if ($shouldHideDynamicUrls()) {
+            $hideDynamicUrlsSubpage();
+        }
+
+        if ($shouldHideLanguageCopy()) {
+            $hideLanguageCopySubpage();
+        }
 
         // Direkter Aufruf der Seite verhindern, wenn sie nicht verfügbar ist
         $requestedPage = rex_request('page', 'string');
         if ($requestedPage === 'jsonld_manager/dynamic_urls') {
             rex_response::sendRedirect(rex_url::backendPage('jsonld_manager/article'));
+        }
+        if ($requestedPage === 'jsonld_manager/settings/language-copy') {
+            rex_response::sendRedirect(rex_url::backendPage('jsonld_manager/settings'));
         }
     });
 }
