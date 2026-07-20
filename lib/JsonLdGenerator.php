@@ -355,6 +355,7 @@ class JsonLdGenerator
         // Konfigurationen laden
         $websiteConfig = self::getGlobalSchemaConfig($addon, 'website_schema', $effectiveClangId, []);
         $organizationConfig = self::getGlobalSchemaConfig($addon, 'organization_schema', $effectiveClangId, []);
+        $personConfig = self::getGlobalSchemaConfig($addon, 'person_schema', $effectiveClangId, []);
         $localBusinessConfig = LanguageConfig::getLocalizedConfig($addon, 'localbusiness_schema', $effectiveClangId, []);
         
         $branchIds = self::normalizeBranchIds($branchId);
@@ -498,6 +499,52 @@ class JsonLdGenerator
             }
         }
         
+        // 2b. Person Schema (z. B. Künstler / Betreiber der Website)
+        if (!empty($personConfig['name'])) {
+            $personSchema = [
+                '@context' => 'https://schema.org',
+                '@type' => 'Person',
+                '@id' => self::getWebsiteUrl() . '/#person',
+                'name' => $personConfig['name'],
+            ];
+
+            if (!empty($personConfig['jobTitle'])) {
+                $personSchema['jobTitle'] = $personConfig['jobTitle'];
+            }
+            if (!empty($personConfig['url'])) {
+                $personSchema['url'] = $personConfig['url'];
+            }
+
+            $personImage = self::normalizePersonImageUrl($personConfig['image'] ?? '');
+            if ($personImage !== '') {
+                $personSchema['image'] = $personImage;
+            }
+
+            if (!empty($personConfig['sameAs'])) {
+                $sameAs = self::normalizeStringList($personConfig['sameAs']);
+                if (!empty($sameAs)) {
+                    $personSchema['sameAs'] = $sameAs;
+                }
+            }
+
+            // Verbindung zur Organization (falls vorhanden)
+            if (!empty($organizationConfig['name'])) {
+                $personSchema['worksFor'] = [
+                    '@id' => rtrim(rex::getServer(), '/') . '/#organization',
+                ];
+            }
+
+            if (!empty($personConfig['custom_jsonld']) && is_array($personConfig['custom_jsonld'])) {
+                $personSchema = CustomJsonLdHelper::mergeIntoSchema($personSchema, $personConfig['custom_jsonld']);
+            }
+
+            $jsonLdItems[] = $personSchema;
+
+            if ($isDebugMode) {
+                self::debugLog('Person Schema hinzugefügt', ['name' => $personConfig['name']]);
+            }
+        }
+
         // 3. WebPage Schema (aktuelle Seite) oder Dynamisches Schema
         if ($articleConfig['webpage_enabled']) {
             // Dynamisches URL-Profil prüfen
@@ -1164,7 +1211,38 @@ class JsonLdGenerator
 
         return array_values(array_unique($imageUrls));
     }
-    
+
+    /**
+     * Portrait-/Bildwert einer Person zu einer absoluten URL normalisieren.
+     */
+    private static function normalizePersonImageUrl(mixed $rawImage): string
+    {
+        $file = trim((string) $rawImage);
+        if ($file === '') {
+            return '';
+        }
+
+        if (preg_match('~^https?://~i', $file)) {
+            return $file;
+        }
+
+        // Falls mehrere Werte gespeichert wurden, ersten verwenden
+        $parts = preg_split('/[\r\n,]+/', $file) ?: [];
+        $file = trim((string) ($parts[0] ?? ''));
+        if ($file === '') {
+            return '';
+        }
+
+        if (preg_match('~^https?://~i', $file)) {
+            return $file;
+        }
+
+        $baseUrl = rtrim(self::getWebsiteUrl(), '/');
+        $mediaPath = rex_url::media($file);
+
+        return str_starts_with($mediaPath, 'http') ? $mediaPath : $baseUrl . $mediaPath;
+    }
+
     /**
      * Domain-spezifische URL-Generierung für Multi-Domain Support
      * 

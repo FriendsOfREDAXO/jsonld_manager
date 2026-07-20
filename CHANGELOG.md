@@ -1,7 +1,19 @@
 
 # Changelog
 
-Dieses Changelog wird ab Version `1.0.0` neu geführt.
+
+## v1.0.0 (20. Juli 2026)
+
+Erstes stabiles Release – die Beta-Phase ist abgeschlossen.
+
+### Added
+- Neues globales **Person Schema** (`@type: Person`) unter `Allgemeine Angaben`. Pflegbar sind die wichtigsten Felder gemäß schema.org/Person: `name`, `jobTitle`, `url`, `image` (Portrait über Media-Widget, wird zu absoluter URL aufgelöst) und `sameAs` (Profil-/Referenz-Links).
+- Custom-JSON-LD-Bereich auf der Person-Seite für zusätzliche Angaben wie `knowsAbout`, `alumniOf`, `memberOf`, `award` oder `nationality`.
+- Person-Schema wird im Frontend automatisch in den JSON-LD-Graph eingehängt (`@id … /#person`) und – sofern vorhanden – per `worksFor` mit der Organisation verknüpft.
+
+### Changed
+- Person-Schema berücksichtigt Mehrsprachigkeit und Multi-Domain identisch zu den übrigen globalen Schemas (WebSite, Organization, LocalBusiness).
+- Versionsnummer stabil auf `1.0.0` angehoben (Ende der Beta).
 
 ## v1.0.0.beta.20 (16. Juni 2026)
 

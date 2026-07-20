@@ -1,6 +1,6 @@
 # JSON-LD Manager für REDAXO
 
-JSON-LD Manager ist ein REDAXO-AddOn zur Verwaltung und Ausgabe strukturierter Daten (Schema.org) für Website, Organization, LocalBusiness, WebPage, BreadcrumbList und dynamische URL-Profile.
+JSON-LD Manager ist ein REDAXO-AddOn zur Verwaltung und Ausgabe strukturierter Daten (Schema.org) für Website, Organization, Person, LocalBusiness, WebPage, BreadcrumbList und dynamische URL-Profile.
 
 Das AddOn bündelt die JSON-LD-Konfiguration zentral im Backend und generiert die Ausgabe konsistent für Vorschau und Frontend.
 
@@ -20,6 +20,7 @@ Nach der Installation solltest du zuerst unter `Allgemeine Angaben` die Basisdat
 
 - `Organization Schema`
 - `WebSite Schema`
+- optional `Person Schema` (z. B. Künstler:in / Betreiber:in der Website)
 - optional `LocalBusiness`
 
 Wenn du ein lokales Unternehmen mit realem Standort hast, ist es sinnvoll, mindestens ein `LocalBusiness` anzulegen. Wenn es mehrere Standorte gibt, können auch mehrere Standorte gepflegt werden.
@@ -132,6 +133,7 @@ Das ist optional und nicht nötig, um die normale JSON-LD-Ausgabe für Website u
 
 - Organization Schema (sprachabhängig)
 - WebSite Schema (sprachabhängig)
+- Person Schema (sprachabhängig)
 - LocalBusiness Standortverwaltung (sprachabhängig)
 
 ### Frontend
