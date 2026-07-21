@@ -746,13 +746,18 @@ class JsonLdGenerator
             // Kategorien
             $currentCat = $currentArticle->getCategory();
             $categories = [];
-            
+
+            // Vom yrewrite_scheme-AddOn ausgeschlossene Kategorien gehören nicht in
+            // die Breadcrumb-Navigation (z. B. rein strukturelle Sammel-Kategorien). (#15)
+            $excludedCategories = [];
+            if (rex_addon::get('yrewrite_scheme')->isAvailable()) {
+                $excludedCategories = (array) rex_config::get('yrewrite_scheme', 'excluded_categories', []);
+            }
+
             while ($currentCat) {
-                if ($currentCat->getId() != $startArticleId) {
-                    $catName = $currentCat->getName();
-                    if ($catName !== 'Gut Schloss Sulzemoos') {
-                        array_unshift($categories, $currentCat);
-                    }
+                if ($currentCat->getId() != $startArticleId
+                    && !in_array($currentCat->getId(), $excludedCategories)) {
+                    array_unshift($categories, $currentCat);
                 }
                 $currentCat = $currentCat->getParent();
             }
@@ -1237,10 +1242,12 @@ class JsonLdGenerator
             return $file;
         }
 
+        // WICHTIG: rex_url::media() nicht verwenden – liefert im Backend einen
+        // relativen Pfad ("../media/…") und ergibt beim Verketten mit der Base-URL
+        // die fehlerhafte "…local../media/…"-Ausgabe. Media-Pfad explizit bauen.
         $baseUrl = rtrim(self::getWebsiteUrl(), '/');
-        $mediaPath = rex_url::media($file);
 
-        return str_starts_with($mediaPath, 'http') ? $mediaPath : $baseUrl . $mediaPath;
+        return $baseUrl . '/media/' . ltrim($file, '/');
     }
 
     /**

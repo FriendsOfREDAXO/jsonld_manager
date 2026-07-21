@@ -2,6 +2,16 @@
 # Changelog
 
 
+## v1.0.1 (21. Juli 2026)
+
+### Fixed
+- Person-`image` wurde in der Backend-Vorschau der Artikel-Seite mit einer fehlerhaften URL (`…local../media/…`, zwei Punkte) ausgegeben. Ursache war `rex_url::media()`, das im Backend einen relativen Pfad (`../media/…`) liefert und beim Verketten mit der Base-URL die doppelten Punkte erzeugte. Der Media-Pfad wird nun explizit als `/media/…` gebaut und funktioniert in Frontend und Backend-Vorschau identisch. Frontend und `global_person` waren nicht betroffen. (#13)
+- Breadcrumb-Liste: Kategorien, die über das `yrewrite_scheme`-AddOn ausgeschlossen sind, werden nicht mehr in der `BreadcrumbList` ausgegeben. Ersetzt einen zuvor projektspezifisch hartcodierten Kategorie-Filter. (#15)
+
+### Changed
+- Projektspezifische Rückstände entfernt: hartcodierter Breadcrumb-Kategorie-Filter und ein Beispiel-Placeholder im LocalBusiness-Slogan-Feld.
+
+
 ## v1.0.0 (20. Juli 2026)
 
 Erstes stabiles Release – die Beta-Phase ist abgeschlossen.

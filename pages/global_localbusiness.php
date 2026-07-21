@@ -1166,7 +1166,7 @@ echo '<div class="row">
                     <label for="lb_slogan">Slogan:</label>
                     <input type="text" name="lb_slogan" id="lb_slogan" class="form-control"
                            value="' . htmlspecialchars($localBusinessConfig['slogan'] ?? '') . '"
-                           placeholder="Ihr Lieblingsrestaurant in Sulzemoos">
+                           placeholder="z. B. Ihr zuverlässiger Partner vor Ort">
                 </div>
                 </div>
             </div>
