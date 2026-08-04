@@ -2,6 +2,12 @@
 # Changelog
 
 
+## v1.0.2 (31. Juli 2026)
+
+### Changed
+- Reihenfolge der Tabs unter `Allgemeine Angaben` angepasst: `Person Schema` wird nun vor `LocalBusiness Schema` angezeigt.
+
+
 ## v1.0.1 (21. Juli 2026)
 
 ### Fixed
