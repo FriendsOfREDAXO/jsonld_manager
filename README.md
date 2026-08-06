@@ -135,6 +135,7 @@ Das ist optional und nicht nötig, um die normale JSON-LD-Ausgabe für Website u
 - WebSite Schema (sprachabhängig)
 - Person Schema (sprachabhängig)
 - LocalBusiness Standortverwaltung (sprachabhängig)
+- llms.txt Verwaltung (Editor, Grundstruktur, Import/Export)
 
 ### Frontend
 
@@ -145,6 +146,22 @@ Das ist optional und nicht nötig, um die normale JSON-LD-Ausgabe für Website u
 
 
 
+
+## llms.txt-Verwaltung
+
+Unter `Allgemeine Angaben > llms.txt` steht ein eigener Editor zur Verfügung.
+
+**Verhalten beim Speichern:**
+- Bei befüllter Eingabe wird die Datei `llms.txt` im Webroot geschrieben/aktualisiert.
+- Bei leerer Eingabe wird ausschließlich die Datei `llms.txt` im Webroot gelöscht.
+
+**Grundstruktur und Import/Export:**
+- `Grundstruktur laden` lädt eine empfohlene Vorlage in den Editor (ohne sofortiges Speichern).
+- Import akzeptiert nur `.txt` und `.md` Dateien und blockiert ausführbare Code-Inhalte.
+- Export liefert den aktuellen Inhalt als Datei `llms.txt`.
+
+**Sicherheit:**
+- Uploads werden serverseitig geprüft (Dateiendung, MIME-Typ, Inhaltsprüfung auf potenziell ausführbaren Code).
 
 ## Legacy Meta-Integration
 

@@ -163,6 +163,48 @@ if (!function_exists('jsonld_render')) {
     }
 
     if (!function_exists('jsonld_render_debug_overlay_script')) {
+        if (!function_exists('jsonld_get_llms_txt_debug_entry')) {
+            /**
+             * Liefert einen Debug-Eintrag für llms.txt oder null, falls kein Inhalt vorhanden ist.
+             *
+             * @return array{payload: array<string, mixed>, meta: array<string, mixed>}|null
+             */
+            function jsonld_get_llms_txt_debug_entry(): ?array
+            {
+                $filePath = rex_path::base('llms.txt');
+                $content = '';
+
+                if (is_file($filePath) && is_readable($filePath)) {
+                    try {
+                        $content = rex_file::get($filePath);
+                    } catch (Throwable $e) {
+                        $content = '';
+                    }
+                }
+
+                if (trim($content) === '') {
+                    $content = (string) rex_config::get('jsonld_manager', 'llms_txt_content', '');
+                }
+
+                if (trim($content) === '') {
+                    return null;
+                }
+
+                return [
+                    'payload' => [
+                        '@type' => 'llms.txt',
+                        'content' => $content,
+                    ],
+                    'meta' => [
+                        'entry_label' => 'llms.txt',
+                        'entry_kind' => 'llms_txt',
+                        'types' => ['llms.txt'],
+                        'note' => 'Inhalt aus Webroot-Datei oder Konfigurations-Backup',
+                    ],
+                ];
+            }
+        }
+
         /**
          * Rendert ein benutzerfreundliches Debug-Overlay als JS (für Ausgabe im <head> geeignet).
          *
@@ -191,10 +233,12 @@ if (!function_exists('jsonld_render')) {
             }
             $payloadJson = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $metaJson = json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $llmsEntryJson = json_encode(jsonld_get_llms_txt_debug_entry(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
             return '<script>(function(){'
                 . 'var jsonldPayload=' . $payloadJson . ';'
                 . 'var jsonldMeta=' . $metaJson . ';'
+                . 'var llmsDebugEntry=' . $llmsEntryJson . ';'
                 . 'var copyIcon="<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"9\" y=\"9\" width=\"13\" height=\"13\" rx=\"2\" ry=\"2\"></rect><path d=\"M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1\"></path></svg>";'
                 . 'var openIcon="<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"6 9 12 15 18 9\"></polyline></svg>";'
                 . 'var closedIcon="<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"18 15 12 9 6 15\"></polyline></svg>";'
@@ -224,6 +268,7 @@ if (!function_exists('jsonld_render')) {
                 . '}'
                 . 'var incoming=splitEntries(jsonldPayload,jsonldMeta);'
                 . 'for(var s=0;s<incoming.length;s++){store.entries.push(incoming[s]);}'
+                . 'if(llmsDebugEntry&&typeof llmsDebugEntry==="object"&&!store.llmsEntryAdded){store.entries.push(llmsDebugEntry);store.llmsEntryAdded=true;}'
                 . 'store.active=0;'
                 . 'var layer=document.getElementById("jsonld-debug-layer");'
                 . 'var tabs,info,body,copyBtn,toggleBtn,head;'

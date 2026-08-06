@@ -1,5 +1,5 @@
 package: jsonld_manager
-version: '1.0.2'
+version: '1.0.10'
 author: 'Friends Of REDAXO'
 supportpage: https://github.com/FriendsOfREDAXO/jsonld_manager
 
@@ -29,6 +29,9 @@ page:
                 global_localbusiness:
                     title: LocalBusiness Schema
                     subPath: pages/global_localbusiness.php
+                global_llms_txt:
+                    title: llms.txt
+                    subPath: pages/global_llms_txt.php
         info:
             title: Info
             itemclass: pull-right

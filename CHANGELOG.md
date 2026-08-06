@@ -1,6 +1,28 @@
 
 # Changelog
 
+## v1.0.10 (06. August 2026)
+
+### Added
+- Neue Unterseite `llms.txt` unter `Allgemeine Angaben` mit Editor und Hinweisen.
+- Bereich `Grundstruktur | Import / Export` in der rechten Spalte inkl. Buttons für `Grundstruktur laden`, `Datei importieren` und `Als Datei herunterladen`.
+- Debug-Overlay zeigt `llms.txt` bei aktivem Debug-Modus als eigenen Eintrag.
+
+### Security
+- Import akzeptiert ausschließlich `.txt` und `.md`.
+- Serverseitige Dateiprüfungen aktiv (Dateiendung, MIME-Typ, Größenlimit, Upload-Integrität).
+- Inhalte mit potenziell ausführbarem Code werden blockiert (u. a. PHP-/Script-Tags, Shebangs, Codeblöcke, Ausführungsfunktionen).
+
+### Changed
+- Textarea schrittweise für bessere Bearbeitung deutlich erhöht.
+- Speichern mit Inhalt schreibt `llms.txt` im Webroot; leeres Speichern löscht ausschließlich `llms.txt`.
+- Initiale Vorlage dient nur als Start-Hilfe; bewusst leerer Zustand bleibt nach leerem Speichern erhalten.
+- Inhalt wird zusätzlich in `rex_config` gespiegelt und kann über `Aus Config wiederherstellen` zurückgeschrieben werden.
+- Soft-Checks erweitert (Strukturhinweise, empfohlene Abschnitte, lange Zeilen).
+
+### Documentation
+- README um Abschnitt zur `llms.txt`-Verwaltung ergänzt (Ablauf, Sicherheit, Import/Export).
+
 
 ## v1.0.2 (31. Juli 2026)
 
