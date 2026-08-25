@@ -1,6 +1,7 @@
 <?php
     use FriendsOfRedaxo\JsonLdManager\JsonLdGenerator;
     use FriendsOfRedaxo\JsonLdManager\DomainConfig;
+    use FriendsOfRedaxo\JsonLdManager\LlmsTxt;
 
     /**
      * Liefert den Branch-Key für einen Artikel (inkl. Multi-Domain-Unterstützung)
@@ -171,20 +172,9 @@ if (!function_exists('jsonld_render')) {
              */
             function jsonld_get_llms_txt_debug_entry(): ?array
             {
-                $filePath = rex_path::base('llms.txt');
-                $content = '';
-
-                if (is_file($filePath) && is_readable($filePath)) {
-                    try {
-                        $content = rex_file::get($filePath);
-                    } catch (Throwable $e) {
-                        $content = '';
-                    }
-                }
-
-                if (trim($content) === '') {
-                    $content = (string) rex_config::get('jsonld_manager', 'llms_txt_content', '');
-                }
+                $domainId = DomainConfig::getCurrentFrontendDomainId();
+                $clangId = (int) rex_clang::getCurrentId();
+                $content = $domainId !== null ? LlmsTxt::getContent($domainId, $clangId) : '';
 
                 if (trim($content) === '') {
                     return null;
@@ -199,7 +189,7 @@ if (!function_exists('jsonld_render')) {
                         'entry_label' => 'llms.txt',
                         'entry_kind' => 'llms_txt',
                         'types' => ['llms.txt'],
-                        'note' => 'Inhalt aus Webroot-Datei oder Konfigurations-Backup',
+                        'note' => 'Domain- und sprachabhängiger Inhalt aus der AddOn-Konfiguration',
                     ],
                 ];
             }

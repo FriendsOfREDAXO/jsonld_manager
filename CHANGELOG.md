@@ -1,6 +1,26 @@
 
 # Changelog
 
+## v1.0.12 (25. August 2026)
+
+### Added
+- Domain- und sprachabhängige Speicherung sowie dynamische Auslieferung von `llms.txt`.
+- YRewrite-Multidomain- und Mehrsprachen-Unterstützung für Editor, Speichern, Leeren, Grundstruktur, Import, Export und Frontend-Debug-Anzeige.
+- Dynamische Sprachrouten: `/llms.txt` für die YRewrite-Startsprache und der jeweilige YRewrite-Sprachpfad für weitere aktive Sprachen.
+- Verlustfreie, idempotente Migration bestehender globaler Config-Inhalte und physischer `llms.txt`-Dateien zur primären Domain und deren Startsprache.
+
+### Changed
+- `llms.txt` wird nicht mehr als gemeinsame Datei im Webroot gepflegt, sondern getrennt pro Domain und Sprache in `rex_config` gespeichert.
+- Leere Inhalte liefern auf der jeweiligen Sprachroute HTTP 404 ohne Fallback auf andere Domains oder Sprachen.
+- Der Endpoint antwortet als reiner Text mit `Content-Type: text/plain; charset=UTF-8` und `X-Content-Type-Options: nosniff`.
+
+### Security
+- Schreibende Backend-Aktionen bleiben CSRF-geschützt und der öffentliche Endpoint ist ausschließlich lesend.
+- Strikte Domainauflösung verhindert die Ausgabe fremder Domaininhalte bei unbekannten oder nicht eindeutig auflösbaren YRewrite-Hosts.
+
+### Documentation
+- README um domainabhängige Verwaltung, dynamische Auslieferung, Leerzustand und Migration ergänzt.
+
 ## v1.0.10 (06. August 2026)
 
 ### Added

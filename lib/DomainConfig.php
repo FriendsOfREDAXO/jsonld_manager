@@ -23,7 +23,7 @@ class DomainConfig
 
         try {
             $sql = rex_sql::factory();
-            $sql->setQuery('SELECT id, domain, mount_id, start_id FROM ' . rex::getTable('yrewrite_domain') . ' ORDER BY domain ASC');
+            $sql->setQuery('SELECT id, domain, mount_id, start_id, clang_start FROM ' . rex::getTable('yrewrite_domain') . ' ORDER BY domain ASC');
             return $sql->getArray();
         } catch (rex_sql_exception $e) {
             // Fallback wenn Tabelle nicht existiert oder leer ist
@@ -49,19 +49,9 @@ class DomainConfig
 
         // Frontend: ohne Session arbeiten (verhindert Fehler bei nicht eingeloggten Besuchern)
         if (!rex::isBackend()) {
-            if (rex_addon::get('yrewrite')->isAvailable() && class_exists('rex_yrewrite')) {
-                $currentDomain = rex_yrewrite::getCurrentDomain();
-                if ($currentDomain instanceof \rex_yrewrite_domain) {
-                    $currentDomainId = (int) $currentDomain->getId();
-                    if ($currentDomainId > 0) {
-                        return $currentDomainId;
-                    }
-                } elseif (is_object($currentDomain) && method_exists($currentDomain, 'getId')) {
-                    $currentDomainId = (int) $currentDomain->getId();
-                    if ($currentDomainId > 0) {
-                        return $currentDomainId;
-                    }
-                }
+            $currentDomainId = self::getCurrentFrontendDomainId();
+            if ($currentDomainId !== null) {
+                return $currentDomainId;
             }
         } else {
             // Backend: Session-Auswahl berücksichtigen
@@ -82,6 +72,91 @@ class DomainConfig
         }
 
         return 1; // Notfall-Fallback
+    }
+
+    /**
+     * Liefert die aktuelle Frontend-Domain ohne Fallback auf eine andere
+     * konfigurierte YRewrite-Domain.
+     */
+    public static function getCurrentFrontendDomainId(): ?int
+    {
+        $domains = self::getDomains();
+        if (!rex_addon::get('yrewrite')->isAvailable() || $domains === []) {
+            return 1;
+        }
+
+        if (rex::isBackend() || !class_exists('rex_yrewrite')) {
+            return null;
+        }
+
+        $currentDomain = self::getCurrentFrontendDomain();
+        if (!is_object($currentDomain) || !method_exists($currentDomain, 'getId')) {
+            return null;
+        }
+
+        $currentDomainId = (int) $currentDomain->getId();
+        foreach ($domains as $domain) {
+            if ((int) ($domain['id'] ?? 0) === $currentDomainId) {
+                return $currentDomainId;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Liefert die von YRewrite direkt dem Request-Host zugeordnete Domain.
+     * Ein Fallback anhand des aktuellen Artikels wird bewusst vermieden.
+     */
+    public static function getCurrentFrontendDomain(): ?object
+    {
+        if (rex::isBackend() || !rex_addon::get('yrewrite')->isAvailable() || !class_exists('rex_yrewrite')) {
+            return null;
+        }
+
+        $host = rex_yrewrite::getHost();
+        if (!is_string($host) || trim($host) === '') {
+            return null;
+        }
+
+        $domain = rex_yrewrite::getDomainByName($host);
+        return is_object($domain) ? $domain : null;
+    }
+
+    /**
+     * Liefert die zuerst angelegte YRewrite-Domain (kleinste ID).
+     * Ohne YRewrite wird die Standard-ID 1 verwendet.
+     */
+    public static function getPrimaryDomainId(): int
+    {
+        $primaryDomain = self::getPrimaryDomainConfig();
+        return $primaryDomain !== null ? (int) $primaryDomain['id'] : 1;
+    }
+
+    public static function getPrimaryDomainClangId(): int
+    {
+        $primaryDomain = self::getPrimaryDomainConfig();
+        if ($primaryDomain !== null) {
+            $clangId = (int) ($primaryDomain['clang_start'] ?? 0);
+            if ($clangId > 0) {
+                return $clangId;
+            }
+        }
+
+        return \rex_clang::getStartId();
+    }
+
+    /** @return array<string, mixed>|null */
+    private static function getPrimaryDomainConfig(): ?array
+    {
+        $primaryDomain = null;
+        foreach (self::getDomains() as $domain) {
+            if ($primaryDomain === null || (int) $domain['id'] < (int) $primaryDomain['id']) {
+                $primaryDomain = $domain;
+            }
+        }
+
+        return $primaryDomain;
     }
 
     /** @return array<string, mixed>|null */

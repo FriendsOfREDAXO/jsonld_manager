@@ -421,6 +421,16 @@ try {
     // ignore, table is already present and data should stay intact
 }
 
+require_once __DIR__ . '/lib/DomainConfig.php';
+require_once __DIR__ . '/lib/LlmsTxt.php';
+$llmsMigrationMessages = \FriendsOfRedaxo\JsonLdManager\LlmsTxt::migrateLegacyStorage();
+foreach ($llmsMigrationMessages as $llmsMigrationMessage) {
+    if (str_starts_with($llmsMigrationMessage, '⚠️')) {
+        throw new rex_functional_exception($llmsMigrationMessage);
+    }
+}
+$updates = array_merge($updates, $llmsMigrationMessages);
+
 $config['version'] = $currentVersion;
 $addon->setConfig($config);
 

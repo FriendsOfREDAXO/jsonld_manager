@@ -2,42 +2,28 @@
 /**
  * JSON-LD Manager - llms.txt
  *
- * Verwaltung der Datei llms.txt im Webroot.
+ * Domain- und sprachabhängige Verwaltung des llms.txt-Inhalts.
  */
+
+use FriendsOfRedaxo\JsonLdManager\DomainConfig;
+use FriendsOfRedaxo\JsonLdManager\LanguageConfig;
+use FriendsOfRedaxo\JsonLdManager\LlmsTxt;
 
 $csrfToken = rex_csrf_token::factory('jsonld_manager_llms_txt');
 $csrfTokenField = $csrfToken->getHiddenField();
 $func = rex_request('func', 'string', '');
 
-$llmsFilePath = rex_path::base('llms.txt');
+$activeDomainId = DomainConfig::getActiveDomainId();
+$supportedClangIds = LlmsTxt::getSupportedClangIds($activeDomainId);
+$activeClangId = LanguageConfig::getActiveClangId($supportedClangIds);
+$publicPath = LlmsTxt::getPublicPath($activeDomainId, $activeClangId);
 $message = '';
 $maxLength = 50000;
 $maxUploadBytes = 100000;
 $llmsContentOverride = null;
 $allowedUploadExtensions = ['txt', 'md'];
 $allowedUploadMimeTypes = ['text/plain', 'text/markdown', 'text/x-markdown', 'inode/x-empty'];
-$initialTemplateShownConfigKey = 'llms_txt_initial_template_shown';
-
-if (!function_exists('jsonld_manager_llms_load_content')) {
-    function jsonld_manager_llms_load_content(string $llmsFilePath): string
-    {
-        $content = '';
-
-        if (is_file($llmsFilePath) && is_readable($llmsFilePath)) {
-            try {
-                $content = rex_file::get($llmsFilePath);
-            } catch (Throwable $e) {
-                $content = '';
-            }
-        }
-
-        if ($content === '') {
-            $content = (string) rex_config::get('jsonld_manager', 'llms_txt_content', '');
-        }
-
-        return $content;
-    }
-}
+$initialTemplateShownConfigKey = LlmsTxt::getInitialTemplateShownKey($activeDomainId, $activeClangId);
 
 if (!function_exists('jsonld_manager_llms_default_template')) {
     function jsonld_manager_llms_default_template(): string
@@ -162,7 +148,7 @@ if ($func === 'download_llms_txt') {
     if (!$csrfToken->isValid()) {
         $message .= rex_view::error('Sicherheitsprüfung fehlgeschlagen (CSRF). Bitte Seite neu laden.');
     } else {
-        $downloadContent = jsonld_manager_llms_load_content($llmsFilePath);
+        $downloadContent = LlmsTxt::getContent($activeDomainId, $activeClangId);
         if (trim($downloadContent) === '') {
             $downloadContent = jsonld_manager_llms_default_template();
         }
@@ -183,16 +169,11 @@ if ($func === 'save_llms_txt') {
 
         if (trim($llmsContent) === '') {
             try {
-                if (is_file($llmsFilePath)) {
-                    rex_file::delete($llmsFilePath);
-                }
-
-                // Backup ebenfalls leeren, damit kein alter Inhalt wiederhergestellt wird.
-                rex_config::set('jsonld_manager', 'llms_txt_content', '');
+                LlmsTxt::deleteContent($activeDomainId, $activeClangId);
                 rex_config::set('jsonld_manager', $initialTemplateShownConfigKey, true);
-                $message .= rex_view::success('Leerer Inhalt gespeichert: Die Datei llms.txt im Webroot wurde gelöscht.');
+                $message .= rex_view::success('Leerer Inhalt gespeichert. ' . htmlspecialchars($publicPath) . ' antwortet für diese Domain und Sprache mit HTTP 404.');
             } catch (Throwable $e) {
-                $message .= rex_view::error('llms.txt konnte nicht gelöscht werden: ' . htmlspecialchars($e->getMessage()));
+                $message .= rex_view::error('llms.txt-Inhalt konnte nicht geleert werden: ' . htmlspecialchars($e->getMessage()));
             }
 
             $llmsContentOverride = '';
@@ -202,9 +183,7 @@ if ($func === 'save_llms_txt') {
                 $message .= rex_view::error(implode('<br>', array_map('htmlspecialchars', $validation['errors'])));
             } else {
                 try {
-                    rex_file::put($llmsFilePath, $llmsContent);
-                    // Optionaler Spiegel in rex_config als Backup für Import/Export-nahe Workflows.
-                    rex_config::set('jsonld_manager', 'llms_txt_content', $llmsContent);
+                    LlmsTxt::setContent($activeDomainId, $activeClangId, $llmsContent);
                     rex_config::set('jsonld_manager', $initialTemplateShownConfigKey, true);
                     $message .= rex_view::success('llms.txt wurde erfolgreich gespeichert.');
                 } catch (Throwable $e) {
@@ -253,7 +232,7 @@ if ($func === 'save_llms_txt') {
             }
 
             if (!$canImport) {
-                $llmsContentOverride = jsonld_manager_llms_load_content($llmsFilePath);
+                $llmsContentOverride = LlmsTxt::getContent($activeDomainId, $activeClangId);
             } else {
                 $importContentRaw = file_get_contents((string) $upload['tmp_name']);
                 if ($importContentRaw === false) {
@@ -271,8 +250,7 @@ if ($func === 'save_llms_txt') {
                             $message .= rex_view::error(implode('<br>', array_map('htmlspecialchars', $validation['errors'])));
                         } else {
                             try {
-                                rex_file::put($llmsFilePath, (string) $importContent);
-                                rex_config::set('jsonld_manager', 'llms_txt_content', (string) $importContent);
+                                LlmsTxt::setContent($activeDomainId, $activeClangId, (string) $importContent);
                                 rex_config::set('jsonld_manager', $initialTemplateShownConfigKey, true);
                                 $message .= rex_view::success('llms.txt wurde aus der Upload-Datei importiert.');
                             } catch (Throwable $e) {
@@ -288,40 +266,22 @@ if ($func === 'save_llms_txt') {
             }
         }
     }
-} elseif ($func === 'restore_llms_txt') {
-    if (!$csrfToken->isValid()) {
-        $message .= rex_view::error('Sicherheitsprüfung fehlgeschlagen (CSRF). Bitte Seite neu laden.');
-    } else {
-        $backupContent = (string) rex_config::get('jsonld_manager', 'llms_txt_content', '');
-
-        if (trim($backupContent) === '') {
-            $message .= rex_view::warning('Kein gespeicherter Backup-Inhalt in der Konfiguration gefunden.');
-        } else {
-            try {
-                rex_file::put($llmsFilePath, $backupContent);
-                rex_config::set('jsonld_manager', $initialTemplateShownConfigKey, true);
-                $message .= rex_view::success('llms.txt wurde aus der Konfiguration wiederhergestellt.');
-            } catch (Throwable $e) {
-                $message .= rex_view::error('Wiederherstellung fehlgeschlagen: ' . htmlspecialchars($e->getMessage()));
-            }
-        }
-    }
 } elseif ($func === 'load_llms_template') {
     if (!$csrfToken->isValid()) {
         $message .= rex_view::error('Sicherheitsprüfung fehlgeschlagen (CSRF). Bitte Seite neu laden.');
     } else {
         $llmsContentOverride = jsonld_manager_llms_default_template();
+        rex_config::set('jsonld_manager', $initialTemplateShownConfigKey, true);
         $message .= rex_view::success('Grundstruktur wurde in den Editor geladen. Zum Übernehmen bitte speichern.');
     }
 }
 
-$llmsContent = jsonld_manager_llms_load_content($llmsFilePath);
+$llmsContent = LlmsTxt::getContent($activeDomainId, $activeClangId);
 
 if (is_string($llmsContentOverride)) {
     $llmsContent = $llmsContentOverride;
 } elseif (trim($llmsContent) === '' && !((bool) rex_config::get('jsonld_manager', $initialTemplateShownConfigKey, false))) {
     $llmsContent = jsonld_manager_llms_default_template();
-    rex_config::set('jsonld_manager', $initialTemplateShownConfigKey, true);
 }
 
 ob_start();
@@ -329,10 +289,14 @@ ob_start();
 
 <?= $message ?>
 
+<?= LanguageConfig::renderClangTabs($activeClangId, $supportedClangIds) ?>
+
 <form method="post" action="" id="jsonld-llms-txt-form" enctype="multipart/form-data">
     <div class="row">
         <div class="col-md-7">
             <input type="hidden" name="func" value="save_llms_txt">
+            <input type="hidden" name="domain_id" value="<?= $activeDomainId ?>">
+            <input type="hidden" name="clang_id" value="<?= $activeClangId ?>">
             <?= $csrfTokenField ?>
 
             <div class="panel panel-primary">
@@ -341,7 +305,7 @@ ob_start();
                 </header>
                 <div class="panel-body">
                     <p class="help-block" style="margin-bottom: 12px;">
-                        Inhalt wird als Datei <code>llms.txt</code> im Webroot gespeichert.
+                        Der Inhalt wird für die aktive Domain und Sprache gespeichert und dort dynamisch unter <code><?= htmlspecialchars($publicPath) ?></code> ausgeliefert.
                     </p>
                     <p class="help-block" style="margin-bottom: 12px;">
                         Zeichen: <?= mb_strlen($llmsContent) ?> / <?= $maxLength ?>
@@ -369,9 +333,9 @@ ob_start();
                     <hr>
                     <p>
                         <strong>Speichern und Löschen:</strong><br>
-                        Beim Speichern mit Inhalt wird die Datei <code>llms.txt</code> im Webroot neu geschrieben.
-                        Wenn du einen leeren Inhalt speicherst, wird genau diese Datei <code>llms.txt</code> im Webroot gelöscht.
-                        Es wird dabei keine andere Datei gelöscht.
+                        Beim Speichern wird nur der Inhalt der aktiven Domain und Sprache geändert.
+                        Ein leer gespeicherter Inhalt führt für diese Sprach-URL zu HTTP 404.
+                        Inhalte anderer Domains und Sprachen bleiben unverändert.
                     </p>
                     <hr>
                     <p><strong>Empfohlene Abschnitte:</strong></p>
@@ -388,10 +352,16 @@ ob_start();
                         Kurze Sätze, klare Überschriften, keine Marketing-Floskeln. Lieber konkret als lang.
                         <a href="https://www.markdownguide.org/basic-syntax/" target="_blank" rel="noopener noreferrer">Markdown</a> ist erlaubt und für Struktur empfohlen.
                     </p>
+                    <p>
+                        <strong>Mehrsprachigkeit:</strong><br>
+                        Die Startsprache einer YRewrite-Domain wird unter <code>/llms.txt</code> ausgeliefert. Weitere aktive Sprachen folgen ihrem von YRewrite erzeugten Sprachpfad.
+                        Fehlt ausnahmsweise ein YRewrite-Sprachpfad, wird <code>/llms_{sprachcode}.txt</code> verwendet.
+                        Sprachcodes und Pfade werden automatisch ermittelt; es gibt keinen inhaltlichen Fallback auf eine andere Sprache.
+                    </p>
                     <hr>
                     <p>
                         <strong>Debug-Integration:</strong><br>
-                        Bei aktiviertem JSON-LD-Debug-Modus wird der aktuelle Inhalt von <code>llms.txt</code>
+                        Bei aktiviertem JSON-LD-Debug-Modus wird der Inhalt der aktuellen Domain und Sprache
                         zusätzlich im Frontend-Debug-Fenster als eigener Eintrag angezeigt.
                     </p>
                 </div>
@@ -405,6 +375,9 @@ ob_start();
                     <p class="help-block" style="margin-bottom: 10px;">
                         Du kannst die Grundstruktur in den Editor laden, den Inhalt als Datei herunterladen
                         oder eine vorhandene <code>llms.txt</code>/<code>.md</code>-Datei importieren.
+                    </p>
+                    <p class="help-block" style="margin-bottom: 10px;">
+                        Grundstruktur, Import und Export beziehen sich ausschließlich auf die aktuell gewählte Domain und Sprache.
                     </p>
                     <p class="help-block" style="margin-bottom: 10px;">
                         Sicherheitsregeln: nur <code>.txt</code> und <code>.md</code>, keine Skript-/Code-Inhalte,
@@ -426,7 +399,6 @@ ob_start();
     </div>
 
     <div class="rex-form-panel-footer" style="padding: 12px; background: rgba(0,0,0,.28); border-top: 1px solid rgba(255,255,255,.08); display: flex; justify-content: flex-end; align-items: center;">
-        <button type="submit" class="btn btn-default" name="func" value="restore_llms_txt" form="jsonld-llms-txt-form" style="margin-right: 8px;">Aus Config wiederherstellen</button>
         <button type="submit" class="btn btn-apply" name="func" value="save_llms_txt" form="jsonld-llms-txt-form">Speichern</button>
     </div>
 </form>

@@ -2,6 +2,7 @@
 
 use Url\Url;
 use FriendsOfRedaxo\JsonLdManager\Frontend\Renderer;
+use FriendsOfRedaxo\JsonLdManager\LlmsTxt;
 
 /**
  * JSON-LD Manager AddOn - Boot
@@ -16,6 +17,16 @@ require_once __DIR__ . '/lib/template_functions.php';
 require_once __DIR__ . '/lib/JsonLdGenerator.php';
 require_once __DIR__ . '/lib/LanguageConfig.php';
 require_once __DIR__ . '/lib/DynamicJsonLd.php';
+
+// Domain- und sprachabhängige llms.txt nach der YRewrite-Auflösung ausliefern.
+if (!rex::isBackend() && rex_addon::get('jsonld_manager')->isAvailable()) {
+    rex_extension::register('PACKAGES_INCLUDED', static function (): void {
+        $route = LlmsTxt::resolveEndpointRequest(rex_request::server('REQUEST_URI', 'string', ''));
+        if ($route !== null) {
+            LlmsTxt::sendResponse($route['domain_id'], $route['clang_id']);
+        }
+    }, rex_extension::LATE);
+}
 
 // Nur im Frontend
 if (!rex::isBackend() && rex_addon::get('jsonld_manager')->isAvailable()) {

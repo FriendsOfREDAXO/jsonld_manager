@@ -169,3 +169,14 @@ $sql->setQuery('
 
 // Installation abgeschlossen
 // REDAXO zeigt automatisch eine Erfolgsmeldung an
+
+// Eine eventuell bereits vorhandene llms.txt verlustfrei in die
+// domainabhängige Speicherung übernehmen.
+require_once __DIR__ . '/lib/DomainConfig.php';
+require_once __DIR__ . '/lib/LlmsTxt.php';
+$llmsMigrationMessages = \FriendsOfRedaxo\JsonLdManager\LlmsTxt::migrateLegacyStorage();
+foreach ($llmsMigrationMessages as $llmsMigrationMessage) {
+    if (str_starts_with($llmsMigrationMessage, '⚠️')) {
+        throw new rex_functional_exception($llmsMigrationMessage);
+    }
+}

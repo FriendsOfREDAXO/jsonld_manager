@@ -135,7 +135,7 @@ Das ist optional und nicht nötig, um die normale JSON-LD-Ausgabe für Website u
 - WebSite Schema (sprachabhängig)
 - Person Schema (sprachabhängig)
 - LocalBusiness Standortverwaltung (sprachabhängig)
-- llms.txt Verwaltung (Editor, Grundstruktur, Import/Export)
+- Domainabhängige llms.txt-Verwaltung (Editor, Grundstruktur, Import/Export)
 
 ### Frontend
 
@@ -152,16 +152,26 @@ Das ist optional und nicht nötig, um die normale JSON-LD-Ausgabe für Website u
 Unter `Allgemeine Angaben > llms.txt` steht ein eigener Editor zur Verfügung.
 
 **Verhalten beim Speichern:**
-- Bei befüllter Eingabe wird die Datei `llms.txt` im Webroot geschrieben/aktualisiert.
-- Bei leerer Eingabe wird ausschließlich die Datei `llms.txt` im Webroot gelöscht.
+- Der Inhalt wird pro Domain und aktiver REDAXO-Sprache in der AddOn-Konfiguration gespeichert.
+- Bei mehreren Domains wird die add-onweit aktive Domain über die vorhandene Domain-Auswahl unter `Einstellungen` festgelegt; auf der llms.txt-Seite wird zusätzlich die vorhandene Sprachauswahl des AddOns verwendet.
+- Die YRewrite-Startsprache jeder Domain ist am Standardpfad `/llms.txt` erreichbar, zum Beispiel `https://domain-a.de/llms.txt` und `https://domain-b.de/llms.txt`.
+- Weitere aktive und von der Domain unterstützte Sprachen werden unter dem tatsächlich von YRewrite erzeugten Sprachpfad ausgeliefert, zum Beispiel `/en/llms.txt`. Stellt YRewrite ausnahmsweise keinen Sprachpfad bereit, wird `/llms_{sprachcode}.txt` verwendet. Sprachcodes, Startsprache und Präfixe sind nicht hartcodiert.
+- Ohne YRewrite bleibt `/llms.txt` der Startsprache vorbehalten; weitere aktive Sprachen sind als `/llms_{sprachcode}.txt` erreichbar.
+- Die Ausgabe erfolgt dynamisch als `text/plain; charset=UTF-8` und bezieht sich ausschließlich auf die aktuell aufgerufene Domain und Sprache.
+- Bei leerem Inhalt antwortet die jeweilige Sprach-URL mit HTTP 404. Es gibt keinen Fallback auf Inhalte einer anderen Domain oder Sprache.
 
 **Grundstruktur und Import/Export:**
 - `Grundstruktur laden` lädt eine empfohlene Vorlage in den Editor (ohne sofortiges Speichern).
-- Import akzeptiert nur `.txt` und `.md` Dateien und blockiert ausführbare Code-Inhalte.
-- Export liefert den aktuellen Inhalt als Datei `llms.txt`.
+- Import akzeptiert nur `.txt` und `.md` Dateien, blockiert ausführbare Code-Inhalte und ändert ausschließlich die ausgewählte Domain.
+- Export liefert den Inhalt der ausgewählten Domain und Sprache mit dem Dateinamen `llms.txt`.
 
 **Sicherheit:**
 - Uploads werden serverseitig geprüft (Dateiendung, MIME-Typ, Inhaltsprüfung auf potenziell ausführbaren Code).
+
+**Migration bestehender Installationen:**
+- Ein vorhandener globaler Config-Inhalt und/oder eine physische Datei `llms.txt` wird beim Update einmalig und ohne Überschreiben bestehender Inhalte der primären Domain und deren YRewrite-Startsprache zugeordnet.
+- Bei mehreren Domains wird der alte Inhalt nicht auf alle Domains kopiert.
+- Eine physische `llms.txt` wird erst nach verifizierter Übernahme oder separater Sicherung entfernt, damit sie die dynamische Auslieferung nicht durch die Webserver-Regel für vorhandene Dateien blockiert.
 
 ## Legacy Meta-Integration
 
@@ -205,6 +215,7 @@ Das AddOn unterstützt vollständig YRewrite Multi-Domain-Installationen:
 - **Schema-Konfigurationen**: Organization, WebSite, LocalBusiness pro Domain
 - **Artikel-Zuordnungen**: Custom JSON, Branch-Zuweisungen etc. pro Domain
 - **Dynamic URLs**: URL-Profile und Mappings pro Domain
+- **llms.txt**: Eigener Inhalt pro Domain und Sprache; `/llms.txt` für die jeweilige Startsprache und YRewrite-Sprachpfade für weitere Sprachen
 
 ### Benutzeroberfläche
 - **Domain-Auswahl**: Dropdown-Menü zum Wechseln zwischen Domains

@@ -10,10 +10,22 @@ class LanguageConfig
 {
     private const SESSION_KEY = 'jsonld_manager_active_clang_id';
 
-    /** @return array<int, rex_clang> */
-    public static function getClangs(): array
+    /**
+     * @param array<int, int>|null $allowedClangIds
+     * @return array<int, rex_clang>
+     */
+    public static function getClangs(?array $allowedClangIds = null): array
     {
-        return rex_clang::getAll(true);
+        $clangs = rex_clang::getAll(true);
+        if ($allowedClangIds === null) {
+            return $clangs;
+        }
+
+        $allowedClangIds = array_map('intval', $allowedClangIds);
+        return array_values(array_filter(
+            $clangs,
+            static fn (rex_clang $clang): bool => in_array((int) $clang->getId(), $allowedClangIds, true)
+        ));
     }
 
     public static function isMultilingual(): bool
@@ -21,13 +33,16 @@ class LanguageConfig
         return count(self::getClangs()) > 1;
     }
 
-    public static function getActiveClangId(): int
+    /** @param array<int, int>|null $allowedClangIds */
+    public static function getActiveClangId(?array $allowedClangIds = null): int
     {
+        $allowedClangs = self::getClangs($allowedClangIds);
+        $allowedIds = array_map(static fn (rex_clang $clang): int => (int) $clang->getId(), $allowedClangs);
         $requested = \rex_request('clang', 'int', 0);
         if ($requested <= 0) {
             $requested = \rex_request('clang_id', 'int', 0);
         }
-        if ($requested > 0 && rex_clang::exists($requested)) {
+        if ($requested > 0 && in_array($requested, $allowedIds, true) && rex_clang::exists($requested)) {
             $clang = rex_clang::get($requested);
             if ($clang && $clang->isOnline()) {
                 \rex_set_session(self::SESSION_KEY, $requested);
@@ -36,7 +51,7 @@ class LanguageConfig
         }
 
         $sessionClangId = (int) \rex_session(self::SESSION_KEY, 'int', 0);
-        if ($sessionClangId > 0 && rex_clang::exists($sessionClangId)) {
+        if ($sessionClangId > 0 && in_array($sessionClangId, $allowedIds, true) && rex_clang::exists($sessionClangId)) {
             $sessionClang = rex_clang::get($sessionClangId);
             if ($sessionClang && $sessionClang->isOnline()) {
                 return $sessionClangId;
@@ -44,6 +59,9 @@ class LanguageConfig
         }
 
         $fallbackClangId = rex_clang::getCurrentId();
+        if (!in_array($fallbackClangId, $allowedIds, true) && $allowedClangs !== []) {
+            $fallbackClangId = (int) $allowedClangs[0]->getId();
+        }
         \rex_set_session(self::SESSION_KEY, $fallbackClangId);
         return $fallbackClangId;
     }
@@ -73,9 +91,11 @@ class LanguageConfig
         $addon->setConfig(self::localizedKey($baseKey, $clangId), $config);
     }
 
-    public static function renderClangTabs(int $activeClangId): string
+    /** @param array<int, int>|null $allowedClangIds */
+    public static function renderClangTabs(int $activeClangId, ?array $allowedClangIds = null): string
     {
-        if (!self::isMultilingual()) {
+        $clangs = self::getClangs($allowedClangIds);
+        if (count($clangs) <= 1) {
             return '';
         }
 
@@ -115,7 +135,7 @@ class LanguageConfig
 }
 </style>';
         $html .= '<div class="btn-group jsonld-clang-group" role="group" aria-label="Sprachen">';
-        foreach (self::getClangs() as $clang) {
+        foreach ($clangs as $clang) {
             $clangId = (int) $clang->getId();
             $isActive = $clangId === $activeClangId;
             $url = rex_url::currentBackendPage(['clang' => $clangId]);
