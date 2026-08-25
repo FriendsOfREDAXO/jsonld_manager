@@ -1,5 +1,9 @@
 package: jsonld_manager
+<<<<<<< HEAD
 version: '1.0.12'
+=======
+version: '1.0.11'
+>>>>>>> 218d0d0d2bc84293e7a38215d44185ab5a1d42c7
 author: 'Friends Of REDAXO'
 supportpage: https://github.com/FriendsOfREDAXO/jsonld_manager
 
