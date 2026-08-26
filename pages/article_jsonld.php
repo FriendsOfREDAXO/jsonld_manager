@@ -559,10 +559,8 @@ $content = LanguageConfig::renderClangTabs($activeClangId) . '
                                 onclick="toggleCustomJsonEditor()">
                             <i class="fa fa-sliders"></i> Custom JSON ' . ($isCustomJson ? '✓' : '') . '
                         </button>
-                        <a href="https://search.google.com/test/rich-results?url=" 
-                           onclick="this.href += encodeURIComponent(\'' . (rex_addon::get('yrewrite')->isAvailable() 
-                               ? rex_yrewrite::getFullUrlByArticleId($selectedArticleId) 
-                               : rex_url::frontendController() . '?article_id=' . $selectedArticleId) . '\')" 
+                        <a href="https://search.google.com/test/rich-results?url="
+                           onclick="this.href += encodeURIComponent(\'' . DomainConfig::getSafeArticleUrl($selectedArticleId, $activeClangId) . '\')"
                            target="_blank" 
                            class="btn btn-primary">
                             <i class="fa fa-external-link"></i> Google Rich Results Test

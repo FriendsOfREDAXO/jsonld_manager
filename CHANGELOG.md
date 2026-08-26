@@ -1,6 +1,15 @@
 
 # Changelog
 
+## v1.0.13 (26. August 2026)
+
+### Fixed
+- Endlosrekursion und Memory-Limit-Fehler beim Öffnen des Addons behoben, wenn ein Artikel über eine zyklische interne YRewrite-Weiterleitung verfügt (z. B. nach dem Zusammenlegen zweier Domains). Betroffen war `rex_yrewrite::getFullUrlByArticleId()` an allen Aufrufstellen (Artikel-Übersicht, WebPage-Schema, Google-Rich-Results-Link).
+
+### Added
+- `DomainConfig::isRedirectChainSafe()` prüft interne Weiterleitungsketten eigenständig (max. 20 Schritte, Zyklenerkennung), bevor YRewrite aufgerufen wird.
+- `DomainConfig::getSafeArticleUrl()` als sicherer Ersatz für direkte `rex_yrewrite::getFullUrlByArticleId()`-Aufrufe mit automatischem Fallback bei erkannten Zyklen.
+
 ## v1.0.12 (25. August 2026)
 
 ### Added

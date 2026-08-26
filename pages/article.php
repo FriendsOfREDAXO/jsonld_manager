@@ -219,7 +219,7 @@ function generateWebPageJsonLd(int $articleId): ?array {
     $jsonld = [
         "@context" => "https://schema.org",
         "@type" => "WebPage",
-        "@id" => (rex_addon::get('yrewrite')->isAvailable() ? rex_yrewrite::getFullUrlByArticleId($articleId) : rex_url::frontendController() . '?article_id=' . $articleId) . '#webpage'
+        "@id" => \FriendsOfRedaxo\JsonLdManager\DomainConfig::getSafeArticleUrl($articleId) . '#webpage'
     ];
     // LocalBusiness-IDs als Array berücksichtigen
     if (!empty($config['localbusiness_branch_ids'])) {
@@ -241,17 +241,13 @@ function generateWebPageJsonLd(int $articleId): ?array {
     }
     
     // URL
-    $jsonld['url'] = rex_addon::get('yrewrite')->isAvailable() 
-        ? rex_yrewrite::getFullUrlByArticleId($articleId)
-        : rex_url::frontendController() . '?article_id=' . $articleId;
-    
+    $jsonld['url'] = \FriendsOfRedaxo\JsonLdManager\DomainConfig::getSafeArticleUrl($articleId);
+
     // Image
     if (!empty($config['image_field'])) {
         $imageValue = getFieldValue($article, $config['image_field']);
         if ($imageValue) {
-            $jsonld['image'] = (rex_addon::get('yrewrite')->isAvailable() 
-                ? rex_yrewrite::getFullUrlByArticleId(1)
-                : rex_url::frontendController()) . '/media/' . $imageValue;
+            $jsonld['image'] = \FriendsOfRedaxo\JsonLdManager\DomainConfig::getSafeArticleUrl(1) . '/media/' . $imageValue;
         }
     }
     

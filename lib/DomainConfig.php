@@ -12,6 +12,7 @@ use rex_url;
 class DomainConfig
 {
     private const SESSION_KEY = 'jsonld_manager_active_domain_id';
+    private const MAX_REDIRECT_CHAIN = 20;
 
     /** @return array<int, array<string, mixed>> */
     public static function getDomains(): array
@@ -291,6 +292,84 @@ class DomainConfig
         }
 
         return rtrim($domain, '/');
+    }
+
+    /**
+     * Prüft die "Weiterleitung intern"-Kette (yrewrite_url_type/yrewrite_redirection)
+     * eines Artikels auf Zyklen bzw. übermäßige Länge, BEVOR rex_yrewrite aufgerufen wird.
+     *
+     * Hintergrund: rex_yrewrite::rewrite() löst interne Weiterleitungen rekursiv auf.
+     * Zeigt eine Weiterleitungskette (z.B. nach dem Zusammenlegen zweier Domains) wieder
+     * auf sich selbst, läuft rex_yrewrite in eine Endlosrekursion und reißt das PHP
+     * Memory-Limit ab (siehe FriendsOfREDAXO/jsonld_manager#16). Diese Prüfung läuft
+     * komplett unabhängig von yrewrite und ist durch MAX_REDIRECT_CHAIN hart begrenzt.
+     */
+    public static function isRedirectChainSafe(int $articleId, int $clangId): bool
+    {
+        $visited = [];
+        $currentId = $articleId;
+        $currentClang = $clangId;
+
+        for ($i = 0; $i < self::MAX_REDIRECT_CHAIN; ++$i) {
+            $key = $currentId . '_' . $currentClang;
+            if (isset($visited[$key])) {
+                // Zyklus entdeckt
+                return false;
+            }
+            $visited[$key] = true;
+
+            try {
+                $sql = rex_sql::factory();
+                $sql->setQuery(
+                    'SELECT yrewrite_url_type, yrewrite_redirection FROM ' . rex::getTable('article') . ' WHERE id = ? AND clang_id = ?',
+                    [$currentId, $currentClang]
+                );
+            } catch (rex_sql_exception $e) {
+                // Spalten/Tabelle nicht verfügbar -> keine Aussage möglich, konservativ als sicher werten
+                return true;
+            }
+
+            if ($sql->getRows() === 0) {
+                return true;
+            }
+
+            $urlType = (string) $sql->getValue('yrewrite_url_type');
+            if ('REDIRECTION_INTERNAL' !== $urlType) {
+                // Kette endet in einem echten Artikel oder externer Weiterleitung
+                return true;
+            }
+
+            $target = (int) $sql->getValue('yrewrite_redirection');
+            if ($target <= 0) {
+                return true;
+            }
+
+            $currentId = $target;
+            // yrewrite behält die Sprache der Weiterleitung bei
+        }
+
+        // Kette länger als MAX_REDIRECT_CHAIN -> als potenziell gefährlich behandeln
+        return false;
+    }
+
+    /**
+     * Liefert die volle Artikel-URL über rex_yrewrite, sofern die interne
+     * Weiterleitungskette des Artikels als sicher geprüft wurde. Andernfalls
+     * wird auf eine einfache article_id-URL zurückgefallen, um eine
+     * Endlosrekursion in rex_yrewrite::rewrite() zu vermeiden.
+     */
+    public static function getSafeArticleUrl(int $articleId, ?int $clangId = null): string
+    {
+        $clangId ??= \rex_clang::getStartId();
+
+        if (
+            rex_addon::get('yrewrite')->isAvailable()
+            && self::isRedirectChainSafe($articleId, $clangId)
+        ) {
+            return \rex_yrewrite::getFullUrlByArticleId($articleId, $clangId);
+        }
+
+        return rex_url::frontendController() . '?article_id=' . $articleId;
     }
 }
 
