@@ -99,8 +99,28 @@ function generateDynamicJsonLd(int|string $profileId, int|string $dataId): strin
             $schema['url'] = $schema['@id'];
         }
         
+        // Flache Einzelwerte für strukturierte Mappings (Offer, PostalAddress, Öffnungszeiten, …) auflösen
+        $resolveLeaf = static function (array $leaf) use ($dataRow): mixed {
+            if ($leaf['type'] === 'static') {
+                return $leaf['value'];
+            }
+            if ($leaf['type'] === 'field' && is_string($leaf['value']) && isset($dataRow[$leaf['value']])) {
+                return $dataRow[$leaf['value']];
+            }
+
+            return null;
+        };
+
         // Felder mappen - KORREKTE AUFLÖSUNG DER MAPPING-OBJEKTE
         foreach ($fieldMappings as $schemaProperty => $fieldMapping) {
+            if (Mapping\DynamicFieldMapper::isStructuredMapping($fieldMapping)) {
+                $structured = Mapping\DynamicFieldMapper::resolveStructured((string) $schemaProperty, $fieldMapping, $resolveLeaf);
+                if ($structured !== null) {
+                    $schema[$schemaProperty] = $structured;
+                }
+                continue;
+            }
+
             if (is_array($fieldMapping)) {
                 // Neues Mapping-Format: {"type":"field","value":"title"} oder {"type":"static","value":"..."}
                 if (isset($fieldMapping['type']) && isset($fieldMapping['value'])) {
