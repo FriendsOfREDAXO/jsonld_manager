@@ -102,6 +102,74 @@ Dort lassen sich JSON-LD-Zuordnungen für dynamische Inhalte konfigurieren, zum 
 
 Das ist optional und nicht nötig, um die normale JSON-LD-Ausgabe für Website und Artikel zu verwenden.
 
+#### Strukturierte Teilobjekte (Angebot, Adresse, Öffnungszeiten, …)
+
+Einige Schema-Properties verlangen kein einfaches Textfeld, sondern ein eigenes Objekt, zum Beispiel `Product.offers` (`Offer` mit Preis, Währung und Verfügbarkeit) oder `LocalBusiness.address` (`PostalAddress`). Für diese Properties bietet das Feld-Mapping neben „Feld“ und „Statischer Wert“ die Option **Strukturiert**: Die Unterfelder werden einzeln aus YForm-Spalten oder festen Werten befüllt, das AddOn baut daraus ein valides Teilobjekt.
+
+Unterstützt werden:
+
+| Property | Objekt | Unterfelder |
+| --- | --- | --- |
+| `offers` | `Offer` | Preis, Währung, Verfügbarkeit, Preis gültig bis, URL |
+| `brand` | `Brand` | Name |
+| `aggregateRating` | `AggregateRating` | Bewertung, Anzahl, beste Bewertung |
+| `address` | `PostalAddress` | Straße, PLZ, Ort, Region, Land |
+| `contactPoint` | `ContactPoint` | Telefon, E-Mail, Kontaktart |
+| `location` | `Place` | Name plus Adressfelder |
+| `organizer`, `provider` | `Organization` | Name, URL |
+| `author` | `Person` | Name, URL |
+| `openingHoursSpecification` | `OpeningHoursSpecification[]` | je Zeile Wochentage, Öffnet, Schließt |
+
+Werte werden dabei normalisiert: Preise wie `12,50 €` werden zu `12.50`, Verfügbarkeiten akzeptieren `InStock`/`OutOfStock` ebenso wie Ja/Nein- oder 1/0-Felder, Wochentage dürfen als `Mo`, `Montag` oder `Monday` vorliegen.
+
+Gespeichert wird das als `{"type":"nested","fields":{"price":{"type":"field","value":"preis"},"priceCurrency":{"type":"static","value":"EUR"}}}` bzw. `{"type":"opening_hours","rows":[{"days":["Monday","Friday"],"opens":{"type":"field","value":"mo_von"},"closes":{"type":"field","value":"mo_bis"}}]}` neben den bisherigen flachen Mappings.
+
+#### FAQ-Seiten und Übersichtslisten
+
+Eine URL-Profil-Zuordnung erzeugt pro Datensatz genau ein Schema-Objekt. `FAQPage` (alle Frage/Antwort-Paare in einem `mainEntity`-Array) und `ItemList`/`CollectionPage` (mehrere Einträge einer Übersichtsseite) lassen sich damit nicht abbilden. Dafür gibt es Template-Funktionen, die mehrere YForm-Zeilen zusammenfassen und direkt im Template oder Modul ausgegeben werden:
+
+```php
+// FAQPage aus einer YForm-Tabelle (alle aktiven Zeilen, sortiert nach prio)
+echo jsonld_render_faq('rex_faq', 'frage', 'antwort', ['status' => 1], [
+    'order_by' => 'prio ASC',
+    'name' => 'Häufige Fragen',
+]);
+
+// ItemList für eine Produktübersicht, Detail-URLs über das URL-AddOn (Namespace "produkt")
+echo jsonld_render_item_list('rex_produkte', 'Product', ['status' => 1, 'kategorie_id' => 3], [
+    'name' => 'titel',
+    'image' => 'bild',
+    'offers' => ['type' => 'nested', 'fields' => [
+        'price' => ['type' => 'field', 'value' => 'preis'],
+        'priceCurrency' => ['type' => 'static', 'value' => 'EUR'],
+    ]],
+    'sku' => static fn (array $row): string => 'P-' . $row['id'],
+], [
+    'url_namespace' => 'produkt',
+    'order_by' => 'titel ASC',
+    'list_type' => 'CollectionPage',
+]);
+```
+
+Filter sind einfache Spalte-Wert-Paare (Arrays ergeben `IN (...)`, `null` ergibt `IS NULL`); Tabellen-, Spalten- und Sortierangaben werden validiert. Feld-Zuordnungen akzeptieren Spaltennamen, Callables (`fn(array $row)`) oder die strukturierten Mapping-Formate von oben. Im Debug-Modus erscheinen die Schemas im Debug-Overlay.
+
+#### PHP-Helfer für eigene Schemas
+
+`FriendsOfRedaxo\JsonLdManager\SchemaHelper` stellt statische Methoden für valide Teilobjekte bereit, die sich in eigenen Templates und Modulen verwenden lassen: `offer()`, `openingHoursSpecification()`, `postalAddress()`, `contactPoint()`, `geoCoordinates()`, `aggregateRating()`, `brand()`, `organization()`, `person()`, `place()`, `question()`, `faqPage()`, `itemList()` sowie `withType()` für beliebige Typen. Leere Werte werden entfernt; ein Objekt ohne Inhalt liefert ein leeres Array. Ein fertiges Schema-Array gibt `jsonld_render_schema($schema)` als `<script type="application/ld+json">` aus.
+
+```php
+use FriendsOfRedaxo\JsonLdManager\SchemaHelper;
+
+$product = [
+    '@context' => 'https://schema.org',
+    '@type' => 'Product',
+    'name' => $row['titel'],
+    'brand' => SchemaHelper::brand($row['marke']),
+    'offers' => SchemaHelper::offer($row['preis'], 'EUR', $row['lieferbar']),
+];
+echo jsonld_render_schema($product);
+```
+
 ## Anforderungen
 
 - REDAXO >= 5.20.0
@@ -127,6 +195,7 @@ Das ist optional und nicht nötig, um die normale JSON-LD-Ausgabe für Website u
 - JSON-LD pro Artikel deaktivierbar (pro Sprache)
 - Zuordnung eines LocalBusiness-Standorts pro Artikel und Sprache
 - Dynamische URL-Profile mit Schema-Mapping (wenn URL-Addon aktiv ist)
+- Strukturierte Feld-Zuordnung für verschachtelte Properties (Angebot, Adresse, Öffnungszeiten, Veranstaltungsort, …)
 - Debug-Modus mit JSON-LD Overlay im Frontend
 
 ### Allgemeine Angaben
@@ -143,6 +212,8 @@ Das ist optional und nicht nötig, um die normale JSON-LD-Ausgabe für Website u
 - Sprachabhängige Ausgabe über `clang_id`
 - Branch-spezifische LocalBusiness-Daten pro Sprache
 - Ausgabe bereinigt leere Werte rekursiv (nur befüllte JSON-LD Felder)
+- Template-Funktionen `jsonld_render_faq()`, `jsonld_render_item_list()` und `jsonld_render_schema()` für FAQ-Seiten, Übersichtslisten und eigene Schemas
+- `SchemaHelper` für valide Teilobjekte (Offer, PostalAddress, OpeningHoursSpecification, AggregateRating, …)
 
 
 

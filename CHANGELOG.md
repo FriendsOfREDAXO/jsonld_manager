@@ -1,5 +1,21 @@
-
 # Changelog
+
+## Unreleased
+
+### Added
+- `SchemaHelper` (`FriendsOfRedaxo\JsonLdManager\SchemaHelper`): wiederverwendbare Helfer für valide Schema.org-Teilobjekte (`offer()`, `openingHoursSpecification()`, `postalAddress()`, `contactPoint()`, `geoCoordinates()`, `aggregateRating()`, `brand()`, `organization()`, `person()`, `place()`, `question()`, `faqPage()`, `itemList()`), inkl. Normalisierung von Preisen (`12,50 €` → `12.50`), Verfügbarkeiten (`InStock`, `ja`/`nein`, `1`/`0` → Schema.org-URL), Wochentagen (`Mo`, `Montag` → `Monday`) und Uhrzeiten.
+- Strukturierte Feld-Zuordnung für dynamische URL-Profile: `offers`, `brand`, `aggregateRating`, `address`, `contactPoint`, `location`, `organizer`, `provider`, `author` und `openingHoursSpecification` können in der Backend-UI per „Strukturiert“ aus mehreren YForm-Feldern zu einem gültigen Teilobjekt (`Offer`, `PostalAddress`, `Place`, `OpeningHoursSpecification`, …) zusammengesetzt werden. Neue Mapping-Formate `{"type":"nested","fields":{…}}` und `{"type":"opening_hours","rows":[…]}` (`Mapping\DynamicFieldMapper`); die Vorschau zeigt das verschachtelte Ergebnis.
+- Template-Funktionen für mehrzeilige Inhalte: `jsonld_render_faq()` fasst alle passenden YForm-Zeilen zu einem `FAQPage`-Schema mit `mainEntity`-Array zusammen, `jsonld_render_item_list()` erzeugt `ItemList`/`CollectionPage` für Übersichtsseiten, `jsonld_render_schema()` rendert ein beliebiges Schema-Array als Script-Tag inkl. Debug-Overlay (`DynamicContent`).
+- Weitere Properties in der dynamischen Zuordnung: `Product.aggregateRating`/`url`, `LocalBusiness.openingHoursSpecification`/`url`/`priceRange`, `Event.offers`/`url`, `Service.offers`.
+
+### Changed
+- `FAQPage` wird für dynamische URL-Profile nicht mehr angeboten, da pro Datensatz nur ein Schema-Objekt entsteht; bestehende Zuordnungen bleiben mit Warnhinweis bearbeitbar. Für FAQ-Seiten ist `jsonld_render_faq()` vorgesehen.
+- Feld-Mappings werden beim Speichern serverseitig auf bekannte Formate, gültige Property- und Spaltennamen reduziert.
+- `PostalAddress`, `ContactPoint` und `GeoCoordinates` in Organization- und LocalBusiness-Schemas werden über `SchemaHelper` gebaut (Konsolidierung); `GeoCoordinates` werden nur noch ausgegeben, wenn Breiten- und Längengrad numerisch und ungleich 0 sind.
+- Beschriftungen im Dynamische-URLs-Editor präzisiert (z. B. „Angebot (Preis, Währung, Verfügbarkeit)“ statt „Preis/Angebot“).
+
+### Fixed
+- Die Live-Vorschau im Dynamische-URLs-Editor zeigt jetzt tatsächlich die Werte des ersten Datensatzes; zuvor blieben gemappte Felder wegen einer falschen Datenstruktur immer leer.
 
 ## v1.0.13 (26. August 2026)
 
