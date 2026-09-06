@@ -26,6 +26,13 @@ use Url\Url;
 class JsonLdGenerator
 {
     /**
+     * URL-Profil und Datensatz des zuletzt erzeugten dynamischen Schemas (für Debug-Meta).
+     *
+     * @var array{dynamic_profile_id: int, dynamic_data_id: int}|null
+     */
+    private static ?array $lastDynamicContext = null;
+
+    /**
      * Baut die komplette JSON-LD-Ausgabe fuer einen Artikel.
      * Diese Methode ist die gemeinsame Quelle fuer Backend-Vorschau, AJAX und Frontend.
      *
@@ -108,6 +115,9 @@ class JsonLdGenerator
             $meta = self::buildDebugMeta($articleId, $effectiveClangId, $resolvedBranchIds, $items, $payload, 'generated');
             if (!empty($branchNames)) {
                 $meta['branch_names'] = $branchNames;
+            }
+            if (self::$lastDynamicContext !== null) {
+                $meta = array_merge($meta, self::$lastDynamicContext);
             }
             $output['meta'] = $meta;
         } catch (Exception $e) {
@@ -344,8 +354,9 @@ class JsonLdGenerator
     public static function generateForArticle(int $articleId, int|array|string|null $branchId = null, bool $isDebugMode = false, mixed $clangId = null): array
     {
         if (!$articleId) return [];
-        
+
         $jsonLdItems = [];
+        self::$lastDynamicContext = null;
         $effectiveClangId = self::normalizeClangId($clangId);
         $currentArticle = rex_article::get($articleId, $effectiveClangId);
         if (!$currentArticle) return [];
@@ -1415,11 +1426,21 @@ class JsonLdGenerator
                 }
             }
             
-            // @ID für Verlinkungen
-            if ($schemaType === 'NewsArticle') {
-                $schema['@id'] = $schema['url'] . '#' . strtolower($schemaType);
+            // Medien-Dateinamen aus YForm zu vollständigen URLs auflösen
+            foreach (['image', 'photo', 'logo'] as $mediaProperty) {
+                if (isset($schema[$mediaProperty]) && is_string($schema[$mediaProperty])) {
+                    $schema[$mediaProperty] = DynamicContent::mediaUrl($schema[$mediaProperty]);
+                }
             }
-            
+
+            // @id für Verlinkungen
+            $schema['@id'] = $schema['url'] . '#' . strtolower($schemaType);
+
+            self::$lastDynamicContext = [
+                'dynamic_profile_id' => (int) ($profile['id'] ?? 0),
+                'dynamic_data_id' => (int) ($dataset['id'] ?? 0),
+            ];
+
             return $schema;
             
         } catch (Exception $e) {

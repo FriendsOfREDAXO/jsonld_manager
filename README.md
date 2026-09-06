@@ -100,6 +100,8 @@ Wenn das AddOn `URL` installiert ist und dort mindestens ein Profil angelegt wur
 
 Dort lassen sich JSON-LD-Zuordnungen für dynamische Inhalte konfigurieren, zum Beispiel für Datensätze aus YForm-Tabellen, die über URL-Profile ausgegeben werden.
 
+Auf einer dynamischen URL ersetzt das zugeordnete Schema (z. B. `Product`) das `WebPage`-Schema im gemeinsamen `@graph` neben `Organization`, `WebSite` und `BreadcrumbList`; es wird nur einmal ausgegeben. Wer die automatische Ausgabe abgeschaltet hat, kann das Schema eines Datensatzes im Template auch einzeln mit `generateDynamicJsonLd($profileId, $dataId)` als eigenes Script-Tag ausgeben.
+
 Das ist optional und nicht nötig, um die normale JSON-LD-Ausgabe für Website und Artikel zu verwenden.
 
 #### Strukturierte Teilobjekte (Angebot, Adresse, Öffnungszeiten, …)

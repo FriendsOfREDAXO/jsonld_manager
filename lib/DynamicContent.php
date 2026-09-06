@@ -268,7 +268,11 @@ final class DynamicContent
         return null;
     }
 
-    private static function mediaUrl(string $value): string
+    /**
+     * Löst einen Medienpool-Dateinamen (oder eine Medialiste) zur vollständigen URL auf.
+     * Absolute URLs und Pfade bleiben unverändert.
+     */
+    public static function mediaUrl(string $value): string
     {
         if (str_starts_with($value, 'http://') || str_starts_with($value, 'https://') || str_starts_with($value, '/')) {
             return $value;
