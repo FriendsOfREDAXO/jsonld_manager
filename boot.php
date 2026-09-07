@@ -1,6 +1,5 @@
 <?php
 
-use Url\Url;
 use FriendsOfRedaxo\JsonLdManager\Frontend\Renderer;
 use FriendsOfRedaxo\JsonLdManager\LlmsTxt;
 
@@ -42,32 +41,10 @@ if (!rex::isBackend() && rex_addon::get('jsonld_manager')->isAvailable()) {
                 return $content;
             }
 
-            $jsonLdOutput = '';
-            $dynamicJsonLdOutput = '';
-
-            // Prüfe ob es eine dynamische URL ist (URL-Addon)
-            if (rex_addon::get('url')->isAvailable()) {
-                try {
-                    $urlManager = Url::resolveCurrent();
-
-                    if ($urlManager) {
-                        // Dynamische URL erkannt - JSON-LD für URL-Profil generieren
-                        $profileId = $urlManager->getProfileId();
-                        $dataId = $urlManager->getDatasetId();
-
-                        if ($profileId && $dataId) {
-                            $dynamicJsonLdOutput = generateDynamicJsonLd($profileId, $dataId);
-                        }
-                    }
-                } catch (Exception $e) {
-                    // Fehler beim URL-Parsing ignorieren
-                }
-            }
-
-            // Standard JSON-LD immer zusätzlich ausgeben
-            $jsonLdOutput .= jsonld_render();
-            // Dynamisches URL-JSON-LD zusätzlich anhängen (falls vorhanden)
-            $jsonLdOutput .= $dynamicJsonLdOutput;
+            // Eine Ausgabe für alles: Auf dynamischen URLs (URL-AddOn) ersetzt
+            // JsonLdGenerator::generateForArticle() das WebPage-Schema im @graph
+            // durch das Schema des URL-Profil-Mappings.
+            $jsonLdOutput = jsonld_render();
 
             // Legacy-Meta-Daten ausgeben (nach letztem <meta ...> im <head>)
             $legacyMeta = trim(rex_config::get('jsonld_manager', 'legacy_meta_raw', ''));

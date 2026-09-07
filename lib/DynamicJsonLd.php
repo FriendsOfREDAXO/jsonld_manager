@@ -3,8 +3,13 @@
 namespace FriendsOfRedaxo\JsonLdManager {
 
 /**
- * Dynamisches JSON-LD für URL-Profile generieren
- * 
+ * Dynamisches JSON-LD für URL-Profile als eigenständiges Script-Tag generieren.
+ *
+ * Wird nicht mehr automatisch über den OUTPUT_FILTER aufgerufen: Die automatische
+ * Ausgabe läuft ausschließlich über JsonLdGenerator (Schema im @graph). Diese
+ * Funktion bleibt für den manuellen Einsatz in Templates erhalten, wenn die
+ * automatische Ausgabe deaktiviert ist.
+ *
  * @param int|string $profileId ID des URL-Profils
  * @param int|string $dataId ID des Datensatzes
  * @return string JSON-LD Script oder leer

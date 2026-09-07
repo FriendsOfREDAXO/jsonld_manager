@@ -16,6 +16,7 @@
 
 ### Fixed
 - Die Live-Vorschau im Dynamische-URLs-Editor zeigt jetzt tatsächlich die Werte des ersten Datensatzes; zuvor blieben gemappte Felder wegen einer falschen Datenstruktur immer leer.
+- Auf dynamischen URLs (URL-AddOn) wurde das Schema des Datensatzes doppelt ausgegeben: einmal im `@graph` über `JsonLdGenerator` und einmal als separates Script über `generateDynamicJsonLd()`. Der `OUTPUT_FILTER` ruft jetzt nur noch `jsonld_render()` auf; das dynamische Schema ersetzt das WebPage-Schema im `@graph`, erhält eine `@id` und löst `image`/`photo`/`logo`-Dateinamen zu Medien-URLs auf. Das Debug-Overlay zeigt weiterhin URL-Profil und Datensatz-ID. `generateDynamicJsonLd()` bleibt für den manuellen Einsatz in Templates erhalten (#17).
 
 ## v1.0.13 (26. August 2026)
 
