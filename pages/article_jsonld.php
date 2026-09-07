@@ -585,7 +585,7 @@ $content = LanguageConfig::renderClangTabs($activeClangId) . '
                             }
                             return '<div style="display: flex; align-items: center; gap: 8px;">
                                         <label for="branch-selector" style="margin: 0; font-weight: bold; font-size: 12px; white-space: nowrap;">LocalBusiness Standorte:</label>
-                                        <select id="branch-selector" class="form-control selectpicker" data-live-search="true" data-size="10" style="width: auto; min-width: 200px;" multiple>
+                                        <select id="branch-selector" class="form-control selectpicker" data-live-search="true" data-size="10" multiple>
                                             ' . $branchOptions . '
                                         </select>
                                         <button type="button" class="btn btn-success btn-sm" id="branch-save-button" onclick="saveBranchSelection()">

@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.2.0 (07. September 2026)
+
+### Added
+- Neue Unterseite **Einstellungen → Export / Import** (`pages/settings_export_import.php`).
+  - **Export** als JSON-Datei: globale Schemas (Organization / WebSite / Person / LocalBusiness inkl. Domain-/Sprach-Varianten), LocalBusiness-Standorte, Grundeinstellungen (inkl. Template-Zuordnung), llms.txt-Inhalte, Legacy-Meta-Rohdaten. Artikelbezogene Zuordnungen sind bewusst nicht enthalten.
+  - **Import** mit Vorschau- und Zuordnungs-Schritt: Sprachen (per Code), Domains (per Host) und Templates (per Name) werden zwischen Quell- und Zielinstallation gemappt. Alles ohne Zuordnung wird übersprungen und im Import-Bericht aufgeführt – **unterschiedliche Domains/Sprachen/Templates führen nicht zu Fehlern**.
+  - **Warnung vor Datenverlust:** Vor dem Import muss aktiv bestätigt werden, dass vorhandene Zieldaten ersetzt werden. Config-Einträge werden überschrieben; Standorte werden je Ziel-Sprache/-Domain per Standortname abgeglichen (gleichnamige aktualisiert – ID bleibt erhalten, fehlende neu, überzählige gelöscht), sodass Re-Importe Artikel-Zuordnungen nicht zerstören.
+  - Der `meta`-Block der Exportdatei (Addon-/REDAXO-Version, Quell-Domains/-Sprachen/-Templates mit Namen) dient nur der Zuordnung und Anzeige – beim Import wird daraus nichts geschrieben. Nicht exportierte Config-Keys werden in `skipped_keys` gelistet.
+  - Der `debug_mode` aus den Grundeinstellungen wird beim Import **nicht** übernommen (Ziel-Einstellung bleibt), damit nicht versehentlich das Frontend-Debug-Overlay aktiviert wird.
+
+### Changed
+- LocalBusiness-Schema (Allgemeine Angaben): Workflow bei mehreren Standorten entwirrt (`pages/global_localbusiness.php`).
+  - Über dem Formular steht jetzt ein **Standort-Umschalter** plus die Überschrift „Standort: …“, damit erkennbar ist, welcher Standort gerade bearbeitet wird.
+  - Neues Feld **„Standortname (intern)“** – der bei der Anlage vergebene Name lässt sich nun auch nachträglich ändern (der Speicher-Handler verarbeitete `branch_name` bereits, es fehlte nur das Feld).
+  - Bei einem **neu angelegten Standort** wird der Geschäftsname (`name`) mit dem Standortnamen vorbelegt, solange noch nichts gespeichert wurde. Das Formular wirkt dadurch nicht mehr „leer“ und das Schema wird nach dem ersten Speichern nicht ungewollt deaktiviert.
+  - Nach „Neuen Standort anlegen“ wird per Redirect direkt auf `&branch_id=<neu>` gewechselt; ein Reload springt nicht mehr auf den Hauptstandort zurück (wodurch Eingaben verloren wirkten).
+
+### Fixed
+- Artikel-JSON-LD: Der „Speichern“-Button neben der LocalBusiness-Standortauswahl reagierte nicht auf Klicks, solange nur ein einzelner (kurzer) Standort gewählt war – speichern ging scheinbar nur mit allen markierten Standorten. Ursache: Das von `bootstrap-select` ausgeblendete native `<select id="branch-selector">` ragte durch ein festes `min-width` über den Button und fing die Klicks ab. Das native Select wird jetzt strikt auf sein Widget begrenzt (`pages/article_jsonld.php`, `assets/css/jsonld_manager.css`).
+
 ## v1.1.0 (07. September 2026)
 
 Danke an [@skerbis](https://github.com/skerbis) für die Analyse und die Vorarbeit zu den strukturierten Mappings sowie den Hinweis auf die doppelte Schema-Ausgabe (#17).

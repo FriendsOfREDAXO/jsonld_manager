@@ -630,3 +630,29 @@ body:not(.rex-theme-dark) .article-table .article-row.active td,
 body:not(.rex-theme-dark) .article-table .article-row.active:hover td {
     background-color: #2f7fbe !important;
 }
+
+/* --------------------------------------------------------------------------
+ * Fix: Das von bootstrap-select ausgeblendete native <select> (#branch-selector)
+ * ragte (durch min-width bzw. fehlende Positionierung) rechts aus seinem Widget
+ * heraus und legte sich unsichtbar ueber den "Speichern"-Button, sodass dieser
+ * nicht mehr auf Mausklicks reagierte. Das native <select> wird daher strikt
+ * auf sein Widget begrenzt, der Button zusaetzlich nach vorne gestellt.
+ * ------------------------------------------------------------------------ */
+.bootstrap-select > select#branch-selector,
+.bootstrap-select > select#branch-selector.selectpicker,
+select#branch-selector {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+#branch-save-button {
+    position: relative;
+    z-index: 3;
+}

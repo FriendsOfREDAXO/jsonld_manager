@@ -1,5 +1,5 @@
 package: jsonld_manager
-version: '1.1.0'
+version: '1.2.0'
 author: 'Friends Of REDAXO'
 supportpage: https://github.com/FriendsOfREDAXO/jsonld_manager
 
@@ -55,6 +55,9 @@ page:
                 language-copy:
                     title: Sprachangaben kopieren
                     subPath: pages/settings_language_copy.php
+                export-import:
+                    title: Export / Import
+                    subPath: pages/settings_export_import.php
                 legacy-integration:
                     title: Legacy Meta Integration
                     subPath: pages/setting_legacy_meta_integration.php

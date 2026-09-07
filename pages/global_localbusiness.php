@@ -63,8 +63,11 @@ if ($lbAction === 'create_branch') {
         
         $sql->setValues($branchValues);
         $sql->insert();
-        $message .= rex_view::success('Neuer Standort "' . htmlspecialchars($branchName) . '" wurde erstellt.');
-        $branchId = $sql->getLastId();
+        $branchId = (int) $sql->getLastId();
+        // Direkt auf den neuen Standort umleiten. Ohne branch_id in der URL würde
+        // ein Reload sonst auf den Hauptstandort zurückspringen und die Eingaben
+        // im Formular wirkten dadurch "verloren".
+        rex_response::sendRedirect(rex_url::currentBackendPage(['branch_id' => $branchId, 'lb_created' => 1], false));
     }
     }
 } elseif ($lbAction === 'delete_branch' && $branchId > 0) {
@@ -687,6 +690,21 @@ if (empty($localBusinessConfig['images']) && !empty($localBusinessConfig['image'
     $localBusinessConfig['images'] = (string) $localBusinessConfig['image'];
 }
 
+// Neu angelegter Standort ohne bisher gespeicherte Angaben: Geschäftsname mit
+// dem Standortnamen vorbelegen, damit das Formular nicht "leer" wirkt und das
+// Schema nach dem ersten Speichern nicht ungewollt deaktiviert bleibt.
+// Sobald einmal gespeichert wurde (Schlüssel "name" vorhanden, ggf. leer),
+// wird die bewusste Eingabe des Nutzers respektiert.
+if ($selectedBranch !== null && !array_key_exists('name', $localBusinessConfig)) {
+    $localBusinessConfig['name'] = (string) ($selectedBranch['branch_name'] ?? '');
+}
+
+// Erfolgsmeldung nach dem Anlegen eines Standorts (Redirect-Ziel), aber nicht
+// mehr, sobald auf dieser Seite bereits gespeichert wurde.
+if (rex_request('lb_created', 'int', 0) === 1 && $lbAction === '' && $selectedBranch !== null) {
+    $message = rex_view::success('Neuer Standort „' . htmlspecialchars((string) ($selectedBranch['branch_name'] ?? '')) . '“ wurde erstellt – Sie bearbeiten ihn jetzt.') . $message;
+}
+
 // Öffnungszeiten (be_table) vorbereiten
 $openingHoursSpec = $localBusinessConfig['openingHoursSpecification'] ?? [];
 if (is_string($openingHoursSpec)) {
@@ -1115,10 +1133,43 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 </script>';
 
+$branchSwitcherHtml = '';
+if (!empty($branches)) {
+    $branchSwitcherOptions = '';
+    foreach ($branches as $switchBranch) {
+        $switchUrl = rex_url::currentBackendPage(['branch_id' => (int) $switchBranch['id']]);
+        $switchLabel = (string) ($switchBranch['branch_name'] ?? ('Standort ' . $switchBranch['id']));
+        if (!empty($switchBranch['is_main_branch'])) {
+            $switchLabel .= ' — Hauptstandort';
+        }
+        $branchSwitcherOptions .= '<option value="' . $switchUrl . '"' . ($switchBranch['id'] == $branchId ? ' selected' : '') . '>' . htmlspecialchars($switchLabel) . '</option>';
+    }
+    $branchSwitcherHtml = '<div class="panel panel-default" style="margin-bottom: 15px;">
+                <div class="panel-body">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="lb-branch-switcher" style="font-weight: bold;">Zu bearbeitender Standort:</label>
+                        <select id="lb-branch-switcher" class="form-control selectpicker" data-size="10" data-live-search="true">
+                            ' . $branchSwitcherOptions . '
+                        </select>
+                        <small class="help-block" style="color: #999;">Wechselt zum gewählten Standort. Nicht gespeicherte Eingaben gehen dabei verloren.</small>
+                    </div>
+                </div>
+            </div>
+            <script>
+            (function() {
+                var sw = document.getElementById("lb-branch-switcher");
+                if (!sw) { return; }
+                sw.addEventListener("change", function() {
+                    if (this.value) { window.location.href = this.value; }
+                });
+            })();
+            </script>';
+}
+
 echo '<div class="row">
     <div class="col-md-6">
 
-        
+        ' . $branchSwitcherHtml . '
         <form method="post" id="lb-main-form">
             ' . $csrfTokenField . '
             <input type="hidden" name="lb_action" value="save">
@@ -1126,7 +1177,8 @@ echo '<div class="row">
             <input type="hidden" name="branch_id" value="' . $branchId . '">
             ' . ($isFormLocked ? '<div class="alert alert-warning" style="margin-bottom: 15px;">Bitte legen Sie zuerst einen Standort an. Ohne Standort sind Eingaben und Speichern deaktiviert.</div>' : '') . '
             <fieldset ' . ($isFormLocked ? 'disabled="disabled" aria-disabled="true"' : '') . '>
-            
+            ' . (!$isFormLocked && $selectedBranch !== null ? '<p style="font-size: 16px; margin: 0 0 15px;"><i class="fa fa-map-marker"></i> Standort: <strong>' . htmlspecialchars((string) ($selectedBranch['branch_name'] ?? '')) . '</strong>' . (!empty($selectedBranch['is_main_branch']) ? ' <span class="label label-warning">Hauptstandort</span>' : '') . '</p>' : '') . '
+
             <div class="panel panel-primary">
                 <header class="panel-heading">
                     <h1 class="panel-title">Grunddaten</h1>
@@ -1134,11 +1186,19 @@ echo '<div class="row">
                 <div class="panel-body">
                 
                 <div class="form-group">
+                    <label for="branch_name">Standortname (intern):</label>
+                    <input type="text" name="branch_name" id="branch_name" class="form-control"
+                           value="' . htmlspecialchars((string) ($selectedBranch['branch_name'] ?? '')) . '"
+                           placeholder="z. B. Filiale Musterstraße">
+                    <small class="help-block" style="color: #999;">Nur zur Unterscheidung im Backend – erscheint nicht im JSON-LD.</small>
+                </div>
+
+                <div class="form-group">
                     <label for="lb_name">Geschäftsname:</label>
-                    <input type="text" name="lb_name" id="lb_name" class="form-control" 
-                           value="' . htmlspecialchars($localBusinessConfig['name'] ?? '') . '" 
+                    <input type="text" name="lb_name" id="lb_name" class="form-control"
+                           value="' . htmlspecialchars($localBusinessConfig['name'] ?? '') . '"
                            placeholder="Restaurant Zur Post">
-                    <small class="help-block" style="color: #999;">Bei leerem Namen wird das Schema deaktiviert</small>
+                    <small class="help-block" style="color: #999;">Erscheint im JSON-LD als <code>name</code>. Bei leerem Namen wird das Schema für diesen Standort deaktiviert.</small>
                 </div>
                 
                 <div class="form-group">
