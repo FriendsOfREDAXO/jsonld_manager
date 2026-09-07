@@ -15,6 +15,9 @@ require_once __DIR__ . '/lib/template_functions.php';
 
 // JSON-LD Generator-Klasse laden
 require_once __DIR__ . '/lib/JsonLdGenerator.php';
+require_once __DIR__ . '/lib/SchemaHelper.php';
+require_once __DIR__ . '/lib/Mapping/DynamicFieldMapper.php';
+require_once __DIR__ . '/lib/DynamicContent.php';
 require_once __DIR__ . '/lib/LanguageConfig.php';
 require_once __DIR__ . '/lib/DynamicJsonLd.php';
 

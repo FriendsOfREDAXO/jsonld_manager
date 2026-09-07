@@ -420,21 +420,15 @@ class JsonLdGenerator
             }
             
             if (!empty($organizationConfig['address']) && is_array($organizationConfig['address'])) {
-                $address = self::pruneEmptyValues(array_merge(
-                    ['@type' => 'PostalAddress'],
-                    $organizationConfig['address']
-                ));
-                if (count($address) > 1) {
+                $address = SchemaHelper::postalAddress($organizationConfig['address']);
+                if (count($address) > 0) {
                     $organizationSchema['address'] = $address;
                 }
             }
-            
+
             if (!empty($organizationConfig['contactPoint']) && is_array($organizationConfig['contactPoint'])) {
-                $contactPoint = self::pruneEmptyValues(array_merge(
-                    ['@type' => 'ContactPoint'],
-                    $organizationConfig['contactPoint']
-                ));
-                if (count($contactPoint) > 1) {
+                $contactPoint = SchemaHelper::contactPoint($organizationConfig['contactPoint']);
+                if (count($contactPoint) > 0) {
                     $organizationSchema['contactPoint'] = $contactPoint;
                 }
             }
@@ -1115,29 +1109,21 @@ class JsonLdGenerator
         }
 
         if (!empty($localBusinessConfig['contactPoint']) && is_array($localBusinessConfig['contactPoint'])) {
-            $contactPoint = self::pruneEmptyValues(array_merge(
-                ['@type' => 'ContactPoint'],
-                $localBusinessConfig['contactPoint']
-            ));
+            $contactPoint = SchemaHelper::contactPoint($localBusinessConfig['contactPoint']);
 
-            if (count($contactPoint) > 1) {
+            if (count($contactPoint) > 0) {
                 $localBusinessSchema['contactPoint'] = $contactPoint;
             }
         }
 
         if (!empty($localBusinessConfig['geo']) && is_array($localBusinessConfig['geo'])) {
             $geo = $localBusinessConfig['geo'];
-            $latitude = trim($geo['latitude'] ?? '');
-            $longitude = trim($geo['longitude'] ?? '');
-            if ($latitude !== '' && $longitude !== '' && $latitude !== '0' && $longitude !== '0') {
-                $localBusinessSchema['geo'] = array_merge(
-                    ['@type' => 'GeoCoordinates'],
-                    $geo,
-                    [
-                        'latitude' => $latitude,
-                        'longitude' => $longitude,
-                    ]
-                );
+            $latitude = trim((string) ($geo['latitude'] ?? ''));
+            $longitude = trim((string) ($geo['longitude'] ?? ''));
+            unset($geo['latitude'], $geo['longitude']);
+            $geoSchema = SchemaHelper::geoCoordinates($latitude, $longitude, $geo);
+            if (count($geoSchema) > 0) {
+                $localBusinessSchema['geo'] = $geoSchema;
             }
         }
 
@@ -1170,7 +1156,7 @@ class JsonLdGenerator
         if (!empty($localBusinessConfig['address']) && is_array($localBusinessConfig['address'])) {
             $localBusinessSchema['address'] = $localBusinessConfig['address'];
         } elseif (!empty($address)) {
-            $localBusinessSchema['address'] = array_merge(['@type' => 'PostalAddress'], $address);
+            $localBusinessSchema['address'] = SchemaHelper::postalAddress($address);
         }
 
         if (!empty($localBusinessConfig['custom_jsonld']) && is_array($localBusinessConfig['custom_jsonld'])) {
@@ -1404,8 +1390,24 @@ class JsonLdGenerator
                 ]);
             }
             
+            $resolveLeaf = static function (array $leaf) use ($dataset, $yformTableName, $articleId, $clangId, $isDebugMode): mixed {
+                return self::resolveMappingValue($leaf, $dataset, $yformTableName, $articleId, $clangId, $isDebugMode);
+            };
+
             // Feld-Mappings auflösen
             foreach ($fieldMappings as $property => $mapping) {
+                if (!is_array($mapping)) {
+                    continue;
+                }
+
+                if (Mapping\DynamicFieldMapper::isStructuredMapping($mapping)) {
+                    $structured = Mapping\DynamicFieldMapper::resolveStructured((string) $property, $mapping, $resolveLeaf);
+                    if ($structured !== null) {
+                        $schema[$property] = $structured;
+                    }
+                    continue;
+                }
+
                 $resolvedValue = self::resolveMappingValue($mapping, $dataset, $yformTableName, $articleId, $clangId, $isDebugMode);
                 
                 if ($resolvedValue !== null && $resolvedValue !== '') {

@@ -56,11 +56,19 @@ if (rex_post('save', 'string') === '1') {
     $active = rex_post('active', 'int', 1);
     $fieldMappings = rex_post('field_mappings', 'string', '{}');
     
-    // JSON validieren
+    // JSON validieren und auf bekannte Mapping-Formate reduzieren
     $mappingsArray = json_decode($fieldMappings, true);
-    if (json_last_error() !== JSON_ERROR_NONE) {
+    if (json_last_error() !== JSON_ERROR_NONE || !is_array($mappingsArray)) {
         $messages[] = rex_view::error('Ungültiges JSON in den Feld-Mappings.');
+    } elseif (preg_match('/^[A-Za-z][A-Za-z0-9]*$/', $schemaType) !== 1) {
+        $messages[] = rex_view::error('Ungültiger Schema-Typ.');
     } else {
+        $mappingsArray = \FriendsOfRedaxo\JsonLdManager\Mapping\DynamicFieldMapper::sanitizeMappings($mappingsArray);
+        $fieldMappings = json_encode($mappingsArray, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($fieldMappings)) {
+            $fieldMappings = '{}';
+        }
+
         // Mapping speichern/aktualisieren
         $sql = rex_sql::factory();
         if (count($mapping) > 0) {
@@ -177,10 +185,12 @@ try {
 }
 
 // Schema-Properties Definition
+// Properties, die in DynamicFieldMapper::getNestedPropertyDefinitions() hinterlegt sind,
+// lassen sich zusätzlich "strukturiert" aus mehreren Feldern zusammensetzen.
 $schemaProperties = [
     'Article' => [
         'headline' => 'Überschrift/Titel',
-        'description' => 'Beschreibung', 
+        'description' => 'Beschreibung',
         'author' => 'Autor',
         'datePublished' => 'Veröffentlichungsdatum',
         'dateModified' => 'Änderungsdatum',
@@ -190,7 +200,7 @@ $schemaProperties = [
     'BlogPosting' => [
         'headline' => 'Blog-Titel',
         'description' => 'Blog-Beschreibung',
-        'author' => 'Blog-Autor', 
+        'author' => 'Blog-Autor',
         'datePublished' => 'Veröffentlichungsdatum',
         'image' => 'Beitragsbild',
         'wordCount' => 'Wortanzahl'
@@ -201,11 +211,6 @@ $schemaProperties = [
         'author' => 'Reporter/Autor',
         'datePublished' => 'Publikationsdatum',
         'image' => 'News-Bild'
-    ],
-    'FAQPage' => [
-        'mainEntity' => 'FAQ-Einträge (Array)',
-        'name' => 'FAQ-Titel',
-        'description' => 'FAQ-Beschreibung'
     ],
     'Person' => [
         'name' => 'Vollständiger Name',
@@ -222,16 +227,19 @@ $schemaProperties = [
         'description' => 'Firmenbeschreibung',
         'url' => 'Website-URL',
         'logo' => 'Firmenlogo',
-        'contactPoint' => 'Kontaktinformationen',
-        'address' => 'Adresse'
+        'contactPoint' => 'Kontaktinformationen (Telefon, E-Mail)',
+        'address' => 'Adresse (Straße, PLZ, Ort, Land)'
     ],
     'LocalBusiness' => [
         'name' => 'Geschäftsname',
         'description' => 'Geschäftsbeschreibung',
-        'address' => 'Geschäftsadresse',
+        'address' => 'Geschäftsadresse (Straße, PLZ, Ort, Land)',
         'telephone' => 'Telefonnummer',
         'email' => 'E-Mail',
-        'openingHours' => 'Öffnungszeiten',
+        'url' => 'Website-URL',
+        'priceRange' => 'Preisspanne (z. B. €€)',
+        'openingHoursSpecification' => 'Öffnungszeiten (strukturiert, je Wochentag)',
+        'openingHours' => 'Öffnungszeiten (Freitext, z. B. "Mo-Fr 09:00-18:00")',
         'image' => 'Geschäftsbild'
     ],
     'Product' => [
@@ -240,29 +248,34 @@ $schemaProperties = [
         'image' => 'Produktbild',
         'sku' => 'Artikelnummer',
         'brand' => 'Marke',
-        'offers' => 'Preis/Angebot',
-        'category' => 'Produktkategorie'
+        'offers' => 'Angebot (Preis, Währung, Verfügbarkeit)',
+        'aggregateRating' => 'Bewertung (Durchschnitt, Anzahl)',
+        'category' => 'Produktkategorie',
+        'url' => 'Produkt-URL'
     ],
     'Service' => [
         'name' => 'Service-Name',
         'description' => 'Service-Beschreibung',
-        'provider' => 'Anbieter',
+        'provider' => 'Anbieter (Name, URL)',
         'serviceType' => 'Service-Typ',
-        'areaServed' => 'Servicegebiet'
+        'areaServed' => 'Servicegebiet',
+        'offers' => 'Angebot (Preis, Währung, Verfügbarkeit)'
     ],
     'Event' => [
         'name' => 'Event-Name',
         'description' => 'Event-Beschreibung',
-        'startDate' => 'Startdatum',
-        'endDate' => 'Enddatum',
-        'location' => 'Veranstaltungsort',
-        'organizer' => 'Veranstalter',
-        'image' => 'Event-Bild'
+        'startDate' => 'Startdatum (ISO 8601)',
+        'endDate' => 'Enddatum (ISO 8601)',
+        'location' => 'Veranstaltungsort (Name, Adresse)',
+        'organizer' => 'Veranstalter (Name, URL)',
+        'offers' => 'Tickets/Angebot (Preis, Währung, Verfügbarkeit)',
+        'image' => 'Event-Bild',
+        'url' => 'Event-URL'
     ],
     'Course' => [
         'name' => 'Kurs-Name',
         'description' => 'Kurs-Beschreibung',
-        'provider' => 'Kursanbieter',
+        'provider' => 'Kursanbieter (Name, URL)',
         'courseMode' => 'Kursart (online/offline)',
         'educationalLevel' => 'Bildungsebene'
     ],
@@ -276,6 +289,19 @@ $schemaProperties = [
         'image' => 'Tierbild'
     ]
 ];
+
+// FAQPage wird bewusst nicht mehr angeboten: Ein URL-Profil-Datensatz ergibt genau ein
+// Schema-Objekt, eine FAQ-Seite braucht aber mehrere Frage/Antwort-Paare (siehe jsonld_render_faq()).
+// Bestehende Zuordnungen bleiben bearbeitbar.
+$legacySchemaProperties = [
+    'FAQPage' => [
+        'mainEntity' => 'FAQ-Einträge (Array)',
+        'name' => 'FAQ-Titel',
+        'description' => 'FAQ-Beschreibung'
+    ],
+];
+
+$nestedDefinitions = \FriendsOfRedaxo\JsonLdManager\Mapping\DynamicFieldMapper::getNestedPropertyDefinitions();
 
 // Config laden falls vorhanden
 $config = [
@@ -295,6 +321,11 @@ if (!empty($mapping)) {
     ];
 }
 
+$isLegacySchemaType = isset($legacySchemaProperties[$config['schema_type']]);
+if ($isLegacySchemaType) {
+    $schemaProperties[$config['schema_type']] = $legacySchemaProperties[$config['schema_type']];
+}
+
 // Sample-Daten für JavaScript (ersten Datensatz verwenden)
 $sampleData = !empty($sampleData) ? $sampleData[0] : [];
 
@@ -304,6 +335,14 @@ ob_start();
 // Messages anzeigen
 foreach ($messages as $message) {
     echo $message;
+}
+
+if ($isLegacySchemaType) {
+    echo rex_view::warning(
+        'Der Schema-Typ <strong>' . rex_escape($config['schema_type']) . '</strong> lässt sich über die URL-Profil-Zuordnung nicht vollständig abbilden: '
+        . 'Pro Datensatz entsteht nur ein einzelnes Schema-Objekt, eine FAQ-Seite benötigt aber alle Frage/Antwort-Paare in einem <code>mainEntity</code>-Array. '
+        . 'Verwenden Sie dafür im Template <code>jsonld_render_faq(\'' . rex_escape($yformTableName) . '\', \'frage_feld\', \'antwort_feld\')</code>.'
+    );
 }
 
 $backUrl = rex_url::currentBackendPage(['func' => '', 'profile_id' => '']);
@@ -322,52 +361,37 @@ echo '          <input type="hidden" name="func" value="save_url_config">';
 echo '          <input type="hidden" name="profile_id" value="' . (int) $profileId . '">';
 echo '          <input type="hidden" name="save" value="1">';
 
+$schemaTypeGroups = [
+    'Artikel & Content' => ['Article', 'BlogPosting', 'NewsArticle'],
+    'Personen & Unternehmen' => ['Organization', 'Person'],
+    'Geschäfte & Services' => ['LocalBusiness', 'Service'],
+    'Produkte & Angebote' => ['Product'],
+    'Events & Kurse' => ['Course', 'Event'],
+    'Sonstige' => ['Animal'],
+];
+if ($isLegacySchemaType) {
+    $schemaTypeGroups['Nicht empfohlen'] = [$config['schema_type']];
+}
+
 echo '          <div class="form-group">';
 echo '            <label for="schema_type">Schema.org Typ</label>';
 echo '            <select id="schema_type" name="schema_type" class="form-control selectpicker" data-live-search="true" data-size="8" onchange="updateSchemaFields()" required>';
 echo '              <option value="">-- Schema-Typ wählen --</option>';
-echo '              <optgroup label="Artikel & Content">';
-foreach(['Article', 'BlogPosting', 'NewsArticle'] as $schemaType) {
-    $selected = ($config['schema_type'] === $schemaType) ? ' selected' : '';
-    echo '                <option value="' . rex_escape($schemaType) . '"' . $selected . '>' . rex_escape($schemaType) . '</option>';
+foreach ($schemaTypeGroups as $groupLabel => $groupTypes) {
+    echo '              <optgroup label="' . rex_escape($groupLabel) . '">';
+    foreach ($groupTypes as $schemaType) {
+        $selected = ($config['schema_type'] === $schemaType) ? ' selected' : '';
+        echo '                <option value="' . rex_escape($schemaType) . '"' . $selected . '>' . rex_escape($schemaType) . '</option>';
+    }
+    echo '              </optgroup>';
 }
-echo '              </optgroup>';
-echo '              <optgroup label="Personen & Unternehmen">';
-foreach(['Organization', 'Person'] as $schemaType) {
-    $selected = ($config['schema_type'] === $schemaType) ? ' selected' : '';
-    echo '                <option value="' . rex_escape($schemaType) . '"' . $selected . '>' . rex_escape($schemaType) . '</option>';
-}
-echo '              </optgroup>';
-echo '              <optgroup label="Geschäfte & Services">';
-foreach(['LocalBusiness', 'Service'] as $schemaType) {
-    $selected = ($config['schema_type'] === $schemaType) ? ' selected' : '';
-    echo '                <option value="' . rex_escape($schemaType) . '"' . $selected . '>' . rex_escape($schemaType) . '</option>';
-}
-echo '              </optgroup>';
-echo '              <optgroup label="Produkte & Angebote">';
-foreach(['Product'] as $schemaType) {
-    $selected = ($config['schema_type'] === $schemaType) ? ' selected' : '';
-    echo '                <option value="' . rex_escape($schemaType) . '"' . $selected . '>' . rex_escape($schemaType) . '</option>';
-}
-echo '              </optgroup>';
-echo '              <optgroup label="Events & Kurse">';
-foreach(['Course', 'Event'] as $schemaType) {
-    $selected = ($config['schema_type'] === $schemaType) ? ' selected' : '';
-    echo '                <option value="' . rex_escape($schemaType) . '"' . $selected . '>' . rex_escape($schemaType) . '</option>';
-}
-echo '              </optgroup>';
-echo '              <optgroup label="Sonstige">';
-foreach(['Animal', 'FAQPage'] as $schemaType) {
-    $selected = ($config['schema_type'] === $schemaType) ? ' selected' : '';
-    echo '                <option value="' . rex_escape($schemaType) . '"' . $selected . '>' . rex_escape($schemaType) . '</option>';
-}
-echo '              </optgroup>';
 echo '            </select>';
+echo '            <p class="help-block">FAQ-Seiten und Übersichtslisten werden nicht pro Datensatz zugeordnet, sondern im Template über <code>jsonld_render_faq()</code> bzw. <code>jsonld_render_item_list()</code> erzeugt.</p>';
 echo '          </div>';
 
 echo '          <div id="field-mappings-container" style="display:none;">';
 echo '            <h4>Feld-Mappings</h4>';
-echo '            <p class="help-block">Verknüpfen Sie Schema.org Properties mit Feldern aus der YForm-Tabelle "' . rex_escape($yformTableName) . '" oder verwenden Sie statische Werte.</p>';
+echo '            <p class="help-block">Verknüpfen Sie Schema.org Properties mit Feldern aus der YForm-Tabelle "' . rex_escape($yformTableName) . '" oder verwenden Sie statische Werte. Properties wie Angebot, Adresse oder Öffnungszeiten können mit „Strukturiert“ aus mehreren Feldern zu einem gültigen Teilobjekt zusammengesetzt werden.</p>';
 echo '            <div id="field-mappings"></div>';
 echo '          </div>';
 
@@ -402,231 +426,508 @@ $fragment->setVar('title', 'JSON-LD Schema für URL-Profil: ' . rex_escape($prof
 $fragment->setVar('body', $content, false);
 echo $fragment->parse('core/page/section.php');
 
-$schemaPropertiesJson = json_encode($schemaProperties, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-$tableFieldsJson = json_encode(array_column($tableFields, 'Field'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-$sampleDataJson = json_encode($sampleData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-$profileNamespaceJson = json_encode((string) ($profile['namespace'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-$savedMappingsJson = json_encode($config['field_mappings'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+$jsonFlags = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
+$schemaPropertiesJson = json_encode($schemaProperties, $jsonFlags);
+$nestedDefinitionsJson = json_encode($nestedDefinitions, $jsonFlags);
+$tableFieldsJson = json_encode(array_column($tableFields, 'Field'), $jsonFlags);
+$sampleDataJson = json_encode($sampleData, $jsonFlags);
+$profileNamespaceJson = json_encode((string) ($profile['namespace'] ?? ''), $jsonFlags);
+$savedMappingsJson = json_encode($config['field_mappings'], $jsonFlags);
 
 if (!is_string($schemaPropertiesJson)) {
     $schemaPropertiesJson = '{}';
 }
+if (!is_string($nestedDefinitionsJson)) {
+    $nestedDefinitionsJson = '{}';
+}
 if (!is_string($tableFieldsJson)) {
     $tableFieldsJson = '[]';
 }
-if (!is_string($sampleDataJson)) {
+if (!is_string($sampleDataJson) || $sampleDataJson === '[]') {
     $sampleDataJson = '{}';
 }
 if (!is_string($profileNamespaceJson)) {
     $profileNamespaceJson = '""';
 }
-if (!is_string($savedMappingsJson)) {
+if (!is_string($savedMappingsJson) || $savedMappingsJson === '[]') {
     $savedMappingsJson = '{}';
 }
 
 ?>
+<style>
+.jsonld-nested-block { border: 1px solid #ddd; border-radius: 4px; padding: 10px 12px 0; margin-top: 8px; background: rgba(0,0,0,0.02); }
+.jsonld-nested-block .form-group { margin-bottom: 10px; }
+.jsonld-nested-block label { font-weight: normal; }
+.jsonld-oh-row { border-bottom: 1px dashed #ddd; padding-bottom: 8px; margin-bottom: 8px; }
+.jsonld-oh-days label { font-weight: normal; margin-right: 8px; white-space: nowrap; }
+</style>
 <script>
-// Schema-Properties und Sample-Daten für JavaScript verfügbar machen
+// Schema-Properties, strukturierte Property-Definitionen und Sample-Daten für JavaScript verfügbar machen
 const schemaProperties = <?= $schemaPropertiesJson ?>;
+const nestedDefinitions = <?= $nestedDefinitionsJson ?>;
 const tableFields = <?= $tableFieldsJson ?>;
 const sampleData = <?= $sampleDataJson ?>;
 const profileNamespace = <?= $profileNamespaceJson ?>;
+const savedMappings = <?= $savedMappingsJson ?>;
+const weekDays = [["Monday", "Mo"], ["Tuesday", "Di"], ["Wednesday", "Mi"], ["Thursday", "Do"], ["Friday", "Fr"], ["Saturday", "Sa"], ["Sunday", "So"], ["PublicHolidays", "Feiertage"]];
+
+const NESTED_VALUE = "__NESTED__";
+const STATIC_VALUE = "__STATIC__";
 
 // Field-Mappings Object für Live-Updates
 let fieldMappings = {};
+let openingHoursRowCounter = 0;
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function fieldOptionsHtml(includeNested) {
+    let html = '<option value="">-- Feld wählen --</option>';
+    html += `<option value="${STATIC_VALUE}">Statischer Wert</option>`;
+    if (includeNested) {
+        html += `<option value="${NESTED_VALUE}">Strukturiert (aus mehreren Feldern)</option>`;
+    }
+    html += tableFields.map(field => `<option value="${escapeHtml(field)}">${escapeHtml(field)}</option>`).join("");
+    return html;
+}
+
+function initSelect(select) {
+    if (select && typeof $.fn.selectpicker !== "undefined") {
+        $(select).selectpicker();
+    }
+}
+
+function refreshSelect(select) {
+    if (select && typeof $.fn.selectpicker !== "undefined" && $(select).hasClass("selectpicker")) {
+        $(select).selectpicker("refresh");
+    }
+}
+
+// Verbindet ein Feld-Select mit seinem Statisch-Eingabefeld (und optional einem strukturierten Block)
+function bindSelect(select, staticInput, nestedBlock) {
+    const apply = function () {
+        const value = select.value;
+        if (staticInput) {
+            staticInput.style.display = value === STATIC_VALUE ? "block" : "none";
+            if (value !== STATIC_VALUE) {
+                staticInput.value = "";
+            }
+        }
+        if (nestedBlock) {
+            nestedBlock.style.display = value === NESTED_VALUE ? "block" : "none";
+        }
+    };
+    $(select).on("changed.bs.select", function () {
+        apply();
+        if (select.value === STATIC_VALUE && staticInput) {
+            staticInput.focus();
+        }
+        updateMapping();
+    });
+    select.addEventListener("change", function () {
+        apply();
+        updateMapping();
+    });
+    if (staticInput) {
+        staticInput.addEventListener("input", updateMapping);
+        staticInput.addEventListener("change", updateMapping);
+    }
+}
+
+function leafRowHtml(idPrefix, parent, subProperty, label) {
+    return `
+        <div class="form-group">
+            <label for="${idPrefix}_select">${escapeHtml(label)} <small style="color:#999;">(${escapeHtml(subProperty)})</small></label>
+            <div class="row">
+                <div class="col-md-6">
+                    <select id="${idPrefix}_select" data-parent="${escapeHtml(parent)}" data-subproperty="${escapeHtml(subProperty)}" class="form-control selectpicker" data-live-search="true" data-size="10">
+                        ${fieldOptionsHtml(false)}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <input type="text" id="${idPrefix}_static" placeholder="Statischer Wert" class="form-control" style="display:none;">
+                </div>
+            </div>
+        </div>`;
+}
+
+function bindLeafRows(container) {
+    container.querySelectorAll("select[data-subproperty]").forEach(select => {
+        const staticInput = staticInputFor(select);
+        initSelect(select);
+        bindSelect(select, staticInput, null);
+    });
+}
+
+function addOpeningHoursRow(property, preset) {
+    const rowsContainer = document.getElementById(`oh_rows_${property}`);
+    if (!rowsContainer) {
+        return null;
+    }
+    const rowIndex = ++openingHoursRowCounter;
+    const idPrefix = `oh_${property}_${rowIndex}`;
+    const row = document.createElement("div");
+    row.className = "jsonld-oh-row";
+    row.dataset.parent = property;
+
+    const daysHtml = weekDays.map(([value, label]) => {
+        const checked = preset && Array.isArray(preset.days) && preset.days.includes(value) ? " checked" : "";
+        return `<label><input type="checkbox" value="${value}" data-oh-day${checked}> ${label}</label>`;
+    }).join("");
+
+    row.innerHTML = `
+        <div class="form-group jsonld-oh-days">
+            <label style="display:block;font-weight:bold;">Wochentage</label>
+            ${daysHtml}
+            <button type="button" class="btn btn-xs btn-default pull-right" data-oh-remove>Zeile entfernen</button>
+        </div>
+        ${leafRowHtml(idPrefix + "_opens", property, "opens", "Öffnet (HH:MM)")}
+        ${leafRowHtml(idPrefix + "_closes", property, "closes", "Schließt (HH:MM)")}
+    `;
+    rowsContainer.appendChild(row);
+
+    row.querySelectorAll("[data-oh-day]").forEach(checkbox => checkbox.addEventListener("change", updateMapping));
+    row.querySelector("[data-oh-remove]").addEventListener("click", function () {
+        row.remove();
+        updateMapping();
+    });
+    bindLeafRows(row);
+
+    if (preset) {
+        applyLeafPreset(row, "opens", preset.opens);
+        applyLeafPreset(row, "closes", preset.closes);
+    }
+    return row;
+}
+
+function applyLeafPreset(container, subProperty, leaf) {
+    if (!leaf || !leaf.type) {
+        return;
+    }
+    const select = container.querySelector(`select[data-subproperty="${subProperty}"]`);
+    if (!select) {
+        return;
+    }
+    const staticInput = staticInputFor(select);
+    if (leaf.type === "static") {
+        select.value = STATIC_VALUE;
+        if (staticInput) {
+            staticInput.style.display = "block";
+            staticInput.value = leaf.value || "";
+        }
+    } else if (leaf.type === "field") {
+        select.value = leaf.value || "";
+    }
+    refreshSelect(select);
+}
 
 function updateSchemaFields() {
     const schemaType = document.getElementById("schema_type").value;
     const container = document.getElementById("field-mappings-container");
     const mappingsDiv = document.getElementById("field-mappings");
-    
+
     if (!schemaType) {
         container.style.display = "none";
         return;
     }
-    
+
     container.style.display = "block";
     mappingsDiv.innerHTML = "";
-    
+
     // Schema-Properties als Bootstrap-Interface erstellen
     const properties = schemaProperties[schemaType] || {};
-    
+
     Object.entries(properties).forEach(([property, description]) => {
+        const nested = nestedDefinitions[property] || null;
         const row = document.createElement("div");
         row.className = "form-group";
-        
+
+        let nestedHtml = "";
+        if (nested) {
+            if (property === "openingHoursSpecification") {
+                nestedHtml = `
+                    <div class="jsonld-nested-block" id="nested_${property}" style="display:none;">
+                        <p class="help-block">Je Zeile: Wochentage plus Öffnungs- und Schließzeit (Feld oder fester Wert, Format HH:MM).</p>
+                        <div id="oh_rows_${property}"></div>
+                        <div class="form-group"><button type="button" class="btn btn-sm btn-default" id="oh_add_${property}">Zeile hinzufügen</button></div>
+                    </div>`;
+            } else {
+                const subRows = Object.entries(nested.fields).map(([subProperty, subLabel]) =>
+                    leafRowHtml(`nested_${property}_${subProperty}`, property, subProperty, subLabel)
+                ).join("");
+                nestedHtml = `
+                    <div class="jsonld-nested-block" id="nested_${property}" style="display:none;">
+                        <p class="help-block">Erzeugt ein <code>${escapeHtml(nested.type)}</code>-Objekt aus den folgenden Angaben.</p>
+                        ${subRows}
+                    </div>`;
+            }
+        }
+
         row.innerHTML = `
-            <label for="mapping_${property}"><strong>${description}</strong> <small style="color:#999;">(${property})</small></label>
+            <label for="mapping_${property}"><strong>${escapeHtml(description)}</strong> <small style="color:#999;">(${escapeHtml(property)})</small></label>
             <div class="row">
                 <div class="col-md-6">
-                    <select id="mapping_${property}" data-property="${property}" class="form-control selectpicker" data-live-search="true" data-size="10" onchange="updateMapping()">
-                        <option value="">-- Feld wählen --</option>
-                        <option value="__STATIC__">Statischer Wert</option>
-                        ${tableFields.map(field => `<option value="${field}">${field}</option>`).join("")}
+                    <select id="mapping_${property}" data-property="${escapeHtml(property)}" class="form-control selectpicker" data-live-search="true" data-size="10">
+                        ${fieldOptionsHtml(nested !== null)}
                     </select>
                 </div>
                 <div class="col-md-6">
-                    <input type="text" id="static_${property}" placeholder="Statischer Wert" class="form-control" style="display:none;" onchange="updateMapping()">
+                    <input type="text" id="static_${property}" placeholder="Statischer Wert" class="form-control" style="display:none;">
                 </div>
             </div>
+            ${nestedHtml}
         `;
-        
+
         mappingsDiv.appendChild(row);
-        
-        // Bootstrap Selectpicker initialisieren
-        const select = row.querySelector("select.selectpicker");
-        if (select && typeof $.fn.selectpicker !== 'undefined') {
-            $(select).selectpicker();
+
+        const select = row.querySelector(`select[data-property]`);
+        const staticInput = row.querySelector(`#static_${property}`);
+        const nestedBlock = row.querySelector(`#nested_${property}`);
+
+        initSelect(select);
+        bindSelect(select, staticInput, nestedBlock);
+
+        if (nestedBlock) {
+            if (property === "openingHoursSpecification") {
+                document.getElementById(`oh_add_${property}`).addEventListener("click", function () {
+                    addOpeningHoursRow(property, null);
+                    updateMapping();
+                });
+            } else {
+                bindLeafRows(nestedBlock);
+            }
         }
-        
-        // Change handler für static value toggle (Selectpicker Event)
-        const selectElement = row.querySelector("select");
-        const staticInput = row.querySelector("input[type=text]");
-        
-        // Event für Bootstrap Selectpicker
-        $(selectElement).on('changed.bs.select', function() {
-            if (this.value === "__STATIC__") {
-                staticInput.style.display = "block";
-                staticInput.focus();
-            } else {
-                staticInput.style.display = "none";
-                staticInput.value = "";
-            }
-            updateMapping();
-        });
-        
-        // Fallback für normale selects
-        selectElement.addEventListener("change", function() {
-            if (this.value === "__STATIC__") {
-                staticInput.style.display = "block";
-                staticInput.focus();
-            } else {
-                staticInput.style.display = "none";
-                staticInput.value = "";
-            }
-        });
     });
-    
+
     updatePreview();
+}
+
+function staticInputFor(select) {
+    if (select.dataset.property) {
+        return document.getElementById(`static_${select.dataset.property}`);
+    }
+    return document.getElementById(select.id.replace(/_select$/, "_static"));
+}
+
+function collectLeaf(select) {
+    if (!select) {
+        return null;
+    }
+    const staticInput = staticInputFor(select);
+    const value = select.value;
+    if (!value || value === NESTED_VALUE) {
+        return null;
+    }
+    if (value === STATIC_VALUE) {
+        if (staticInput && staticInput.value.trim() !== "") {
+            return { type: "static", value: staticInput.value };
+        }
+        return null;
+    }
+    return { type: "field", value: value };
 }
 
 function updateMapping() {
     fieldMappings = {};
-    
-    // Alle Mapping-Selects durchgehen
-    document.querySelectorAll("[data-property]").forEach(select => {
+
+    document.querySelectorAll("select[data-property]").forEach(select => {
         const property = select.dataset.property;
         const value = select.value;
-        const staticInput = document.getElementById(`static_${property}`);
-        
-        if (value) {
-            if (value === "__STATIC__") {
-                if (staticInput.value) {
-                    fieldMappings[property] = {
-                        type: "static",
-                        value: staticInput.value
-                    };
+        if (!value) {
+            return;
+        }
+
+        if (value === NESTED_VALUE) {
+            if (property === "openingHoursSpecification") {
+                const rows = [];
+                document.querySelectorAll(`#oh_rows_${property} .jsonld-oh-row`).forEach(row => {
+                    const days = Array.from(row.querySelectorAll("[data-oh-day]:checked")).map(cb => cb.value);
+                    const opens = collectLeaf(row.querySelector('select[data-subproperty="opens"]'));
+                    const closes = collectLeaf(row.querySelector('select[data-subproperty="closes"]'));
+                    if (days.length === 0 || (!opens && !closes)) {
+                        return;
+                    }
+                    const entry = { days: days };
+                    if (opens) entry.opens = opens;
+                    if (closes) entry.closes = closes;
+                    rows.push(entry);
+                });
+                if (rows.length > 0) {
+                    fieldMappings[property] = { type: "opening_hours", rows: rows };
                 }
             } else {
-                fieldMappings[property] = {
-                    type: "field", 
-                    value: value
-                };
+                const fields = {};
+                document.querySelectorAll(`#nested_${property} select[data-subproperty]`).forEach(subSelect => {
+                    const leaf = collectLeaf(subSelect);
+                    if (leaf) {
+                        fields[subSelect.dataset.subproperty] = leaf;
+                    }
+                });
+                if (Object.keys(fields).length > 0) {
+                    fieldMappings[property] = { type: "nested", fields: fields };
+                }
             }
+            return;
+        }
+
+        const leaf = collectLeaf(select);
+        if (leaf) {
+            fieldMappings[property] = leaf;
         }
     });
-    
+
     updatePreview();
+}
+
+function resolveLeafPreview(leaf) {
+    if (!leaf) {
+        return undefined;
+    }
+    if (leaf.type === "static") {
+        return leaf.value;
+    }
+    const fieldValue = sampleData[leaf.value];
+    if (fieldValue !== undefined && fieldValue !== null && fieldValue !== "") {
+        return fieldValue;
+    }
+    return `[Feld: ${leaf.value}]`;
+}
+
+function previewNested(property, mapping) {
+    const definition = nestedDefinitions[property] || { type: mapping.object_type || "Thing" };
+    const object = { "@type": definition.type };
+    Object.entries(mapping.fields || {}).forEach(([subProperty, leaf]) => {
+        let value = resolveLeafPreview(leaf);
+        if (value === undefined) {
+            return;
+        }
+        if (subProperty === "availability" && typeof value === "string" && !/^https?:/.test(value)) {
+            value = "https://schema.org/" + value;
+        }
+        object[subProperty] = value;
+    });
+    if (definition.type === "Offer" && !object.priceCurrency) {
+        object.priceCurrency = "EUR";
+    }
+    if (definition.type === "Place") {
+        const addressKeys = ["streetAddress", "postalCode", "addressLocality", "addressRegion", "addressCountry"];
+        const address = {};
+        addressKeys.forEach(key => {
+            if (object[key] !== undefined) {
+                address[key] = object[key];
+                delete object[key];
+            }
+        });
+        if (Object.keys(address).length > 0) {
+            object.address = Object.assign({ "@type": "PostalAddress" }, address);
+        }
+    }
+    return object;
+}
+
+function previewOpeningHours(mapping) {
+    return (mapping.rows || []).map(row => {
+        const entry = { "@type": "OpeningHoursSpecification", dayOfWeek: row.days.length === 1 ? row.days[0] : row.days };
+        const opens = resolveLeafPreview(row.opens);
+        const closes = resolveLeafPreview(row.closes);
+        if (opens !== undefined) entry.opens = opens;
+        if (closes !== undefined) entry.closes = closes;
+        return entry;
+    });
 }
 
 function updatePreview() {
     const schemaType = document.getElementById("schema_type").value;
     const preview = document.getElementById("json-preview");
-    
+
     if (!schemaType) {
         preview.textContent = "Wählen Sie einen Schema-Typ aus.";
         return;
     }
-    
-    // Sample-Dataset für Vorschau verwenden (erste Zeile)
-    const sampleRecord = sampleData && sampleData.length > 0 ? sampleData[0] : {};
-    
-    // JSON-LD Schema mit Sample-Daten generieren
+
+    // JSON-LD Schema mit Sample-Daten (erster Datensatz) generieren
     const schema = {
         "@context": "https://schema.org",
         "@type": schemaType,
-        "@id": `${window.location.origin}/${profileNamespace}/${sampleRecord.id || "sample-id"}`,
-        "url": `${window.location.origin}/${profileNamespace}/${sampleRecord.slug || sampleRecord.id || "sample-url"}`
+        "@id": `${window.location.origin}/${profileNamespace}/${sampleData.id || "sample-id"}`
     };
-    
-    // Felder basierend auf Mappings hinzufügen - KORREKTE AUFLÖSUNG
+    if (fieldMappings.url) {
+        schema.url = schema["@id"];
+    }
+
     Object.entries(fieldMappings).forEach(([property, mapping]) => {
-        if (mapping.type === "static") {
-            schema[property] = mapping.value;
-        } else if (mapping.type === "field") {
-            // Feldwert aus Sample-Daten auflösen
-            const fieldValue = sampleRecord[mapping.value];
-            if (fieldValue !== undefined && fieldValue !== null && fieldValue !== '') {
-                schema[property] = fieldValue;
-            } else {
-                // Fallback für Debug: Zeige welches Feld gemappt wurde
-                schema[property] = `[Feld: ${mapping.value}] (Sample-Daten nicht verfügbar)`;
+        if (property === "url") {
+            return;
+        }
+        if (mapping.type === "nested") {
+            schema[property] = previewNested(property, mapping);
+        } else if (mapping.type === "opening_hours") {
+            schema[property] = previewOpeningHours(mapping);
+        } else {
+            const value = resolveLeafPreview(mapping);
+            if (value !== undefined) {
+                schema[property] = value;
             }
         }
     });
-    
+
     preview.textContent = JSON.stringify(schema, null, 2);
 }
 
+function restoreSavedMappings() {
+    Object.entries(savedMappings).forEach(([property, mapping]) => {
+        const select = document.getElementById(`mapping_${property}`);
+        const staticInput = document.getElementById(`static_${property}`);
+        const nestedBlock = document.getElementById(`nested_${property}`);
+        if (!select || !mapping || !mapping.type) {
+            return;
+        }
+
+        if (mapping.type === "static") {
+            select.value = STATIC_VALUE;
+            if (staticInput) {
+                staticInput.style.display = "block";
+                staticInput.value = mapping.value || "";
+            }
+        } else if (mapping.type === "field") {
+            select.value = mapping.value || "";
+        } else if (mapping.type === "nested" && nestedBlock) {
+            select.value = NESTED_VALUE;
+            nestedBlock.style.display = "block";
+            Object.entries(mapping.fields || {}).forEach(([subProperty, leaf]) => {
+                applyLeafPreset(nestedBlock, subProperty, leaf);
+            });
+        } else if (mapping.type === "opening_hours" && nestedBlock) {
+            select.value = NESTED_VALUE;
+            nestedBlock.style.display = "block";
+            (mapping.rows || []).forEach(row => addOpeningHoursRow(property, row));
+        }
+
+        refreshSelect(select);
+    });
+
+    updateMapping();
+}
+
 // Form-Submit Handler
-document.getElementById("jsonld-main-form").addEventListener("submit", function(e) {
+document.getElementById("jsonld-main-form").addEventListener("submit", function () {
+    updateMapping();
     document.getElementById("field-mappings-input").value = JSON.stringify(fieldMappings);
 });
 
 // Initialer Load der gespeicherten Konfiguration
-document.addEventListener("DOMContentLoaded", function() {
-    // Bootstrap Selectpicker für Schema-Type initialisieren
-    if (typeof $.fn.selectpicker !== 'undefined') {
-        $('#schema_type').selectpicker();
-    }
-    
-    const savedMappings = <?= $savedMappingsJson ?>;
-    
-    // Mappings wiederherstellen
+document.addEventListener("DOMContentLoaded", function () {
+    initSelect(document.getElementById("schema_type"));
+
+    updateSchemaFields();
     if (Object.keys(savedMappings).length > 0) {
-        fieldMappings = savedMappings;
-        
-        setTimeout(() => {
-            updateSchemaFields();
-            
-            // Saved values in select boxes wiederherstellen
-            Object.entries(savedMappings).forEach(([property, mapping]) => {
-                const select = document.getElementById(`mapping_${property}`);
-                const staticInput = document.getElementById(`static_${property}`);
-                
-                if (select) {
-                    if (mapping.type === "static") {
-                        select.value = "__STATIC__";
-                        if (staticInput) {
-                            staticInput.style.display = "block";
-                            staticInput.value = mapping.value || "";
-                        }
-                    } else if (mapping.type === "field") {
-                        select.value = mapping.value || "";
-                    }
-                    
-                    // Selectpicker aktualisieren falls vorhanden
-                    if (typeof $.fn.selectpicker !== 'undefined' && $(select).hasClass('selectpicker')) {
-                        $(select).selectpicker('refresh');
-                    }
-                }
-            });
-            
-            updatePreview();
-        }, 100);
-    } else {
-        // Schema-Felder laden, falls Schema-Typ bereits gesetzt
-        updateSchemaFields();
+        setTimeout(restoreSavedMappings, 100);
     }
 
     // Sticky Preview Funktionalität initialisieren

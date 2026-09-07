@@ -334,3 +334,72 @@ if (!function_exists('jsonld_render')) {
         return '';
     }
 }
+
+if (!function_exists('jsonld_render_schema')) {
+    /**
+     * Rendert ein beliebiges Schema-Array (z. B. aus SchemaHelper) als JSON-LD-Script.
+     *
+     * @param array<string, mixed> $schema
+     * @param array<string, mixed> $meta Zusätzliche Debug-Informationen
+     */
+    function jsonld_render_schema(array $schema, array $meta = []): string
+    {
+        return \FriendsOfRedaxo\JsonLdManager\DynamicContent::renderScript($schema, $meta);
+    }
+}
+
+if (!function_exists('jsonld_render_faq')) {
+    /**
+     * Fasst alle passenden Zeilen einer YForm-Tabelle zu einem FAQPage-Schema zusammen.
+     *
+     * Beispiel: echo jsonld_render_faq('rex_faq', 'frage', 'antwort', ['status' => 1], ['order_by' => 'prio ASC']);
+     *
+     * @param array<string, mixed> $filter Spalte => Wert
+     * @param array<string, mixed> $options order_by, limit, name, description, url, strip_tags
+     */
+    function jsonld_render_faq(string $tableName, string $questionField, string $answerField, array $filter = [], array $options = []): string
+    {
+        try {
+            $schema = \FriendsOfRedaxo\JsonLdManager\DynamicContent::faqPage($tableName, $questionField, $answerField, $filter, $options);
+
+            return \FriendsOfRedaxo\JsonLdManager\DynamicContent::renderScript($schema, ['source_table' => $tableName]);
+        } catch (Throwable $e) {
+            if (rex::isDebugMode()) {
+                return '<!-- JSON-LD Error: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES) . ' -->' . "\n";
+            }
+        }
+
+        return '';
+    }
+}
+
+if (!function_exists('jsonld_render_item_list')) {
+    /**
+     * Fasst YForm-Zeilen (z. B. alle Produkte einer Kategorie) zu einem ItemList-/CollectionPage-Schema zusammen.
+     *
+     * Beispiel:
+     *   echo jsonld_render_item_list('rex_produkte', 'Product', ['status' => 1, 'kategorie_id' => 3], [
+     *       'name' => 'titel',
+     *       'image' => 'bild',
+     *       'offers' => ['type' => 'nested', 'fields' => ['price' => ['type' => 'field', 'value' => 'preis']]],
+     *   ], ['url_namespace' => 'produkt', 'order_by' => 'titel ASC']);
+     *
+     * @param array<string, mixed> $filter Spalte => Wert
+     * @param array<string, mixed> $fieldMappings Schema-Property => Spaltenname | callable(array $row) | strukturiertes Mapping
+     * @param array<string, mixed> $options list_type, order_by, limit, name, description, url, url_namespace, url_callback
+     */
+    function jsonld_render_item_list(string $tableName, string $schemaType, array $filter = [], array $fieldMappings = [], array $options = []): string
+    {
+        try {
+            $schema = \FriendsOfRedaxo\JsonLdManager\DynamicContent::itemList($tableName, $schemaType, $filter, $fieldMappings, $options);
+
+            return \FriendsOfRedaxo\JsonLdManager\DynamicContent::renderScript($schema, ['source_table' => $tableName]);
+        } catch (Throwable $e) {
+            if (rex::isDebugMode()) {
+                return '<!-- JSON-LD Error: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES) . ' -->' . "\n";
+            }
+        }
+
+        return '';
+    }
+}
