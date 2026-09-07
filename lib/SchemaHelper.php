@@ -345,6 +345,43 @@ final class SchemaHelper
     }
 
     /**
+     * Baut einen MonetaryAmount (z. B. für JobPosting.baseSalary). Der Betrag wird
+     * als QuantitativeValue mit optionaler Einheit (HOUR, DAY, WEEK, MONTH, YEAR)
+     * abgebildet; alternativ lassen sich Min-/Max-Werte angeben.
+     *
+     * @param array<string, mixed> $extra Weitere QuantitativeValue-Felder (minValue, maxValue, unitText)
+     * @return array<string, mixed>
+     */
+    public static function monetaryAmount(string|float|int|null $value, string $currency = 'EUR', ?string $unitText = null, array $extra = []): array
+    {
+        $normalizedValue = self::normalizePrice($value);
+        $minValue = isset($extra['minValue']) ? self::normalizePrice(is_scalar($extra['minValue']) ? $extra['minValue'] : null) : null;
+        $maxValue = isset($extra['maxValue']) ? self::normalizePrice(is_scalar($extra['maxValue']) ? $extra['maxValue'] : null) : null;
+        unset($extra['minValue'], $extra['maxValue'], $extra['value'], $extra['@type']);
+
+        if ($normalizedValue === null && $minValue === null && $maxValue === null) {
+            return [];
+        }
+
+        $unit = $unitText !== null ? strtoupper(trim($unitText)) : null;
+        if ($unit !== null && !in_array($unit, ['HOUR', 'DAY', 'WEEK', 'MONTH', 'YEAR'], true)) {
+            $unit = null;
+        }
+
+        $quantitative = self::withType('QuantitativeValue', array_merge($extra, [
+            'value' => $normalizedValue,
+            'minValue' => $minValue,
+            'maxValue' => $maxValue,
+            'unitText' => $unit,
+        ]));
+
+        return self::withType('MonetaryAmount', [
+            'currency' => strtoupper(trim($currency)) !== '' ? strtoupper(trim($currency)) : 'EUR',
+            'value' => count($quantitative) > 0 ? $quantitative : null,
+        ]);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function aggregateRating(string|float|int|null $ratingValue, string|int|null $reviewCount, string|float|int $bestRating = 5, string|float|int|null $worstRating = null): array

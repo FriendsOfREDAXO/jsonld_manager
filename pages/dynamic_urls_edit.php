@@ -279,6 +279,20 @@ $schemaProperties = [
         'courseMode' => 'Kursart (online/offline)',
         'educationalLevel' => 'Bildungsebene'
     ],
+    'JobPosting' => [
+        'title' => 'Stellentitel',
+        'description' => 'Stellenbeschreibung (Text/HTML)',
+        'datePosted' => 'Veröffentlichungsdatum (YYYY-MM-DD)',
+        'validThrough' => 'Bewerbungsfrist (ISO 8601)',
+        'employmentType' => 'Beschäftigungsart (FULL_TIME, PART_TIME, CONTRACTOR, TEMPORARY, INTERN, …)',
+        'hiringOrganization' => 'Arbeitgeber (Name, URL)',
+        'jobLocation' => 'Arbeitsort (Adresse)',
+        'jobLocationType' => 'Ortstyp (TELECOMMUTE für Remote)',
+        'baseSalary' => 'Gehalt (Betrag/Spanne, Währung, Zeiteinheit)',
+        'industry' => 'Branche',
+        'identifier' => 'Referenznummer',
+        'url' => 'Stellen-URL',
+    ],
     'Animal' => [
         'name' => 'Tiername',
         'species' => 'Tierart/Spezies',
@@ -367,6 +381,7 @@ $schemaTypeGroups = [
     'Geschäfte & Services' => ['LocalBusiness', 'Service'],
     'Produkte & Angebote' => ['Product'],
     'Events & Kurse' => ['Course', 'Event'],
+    'Stellenanzeigen' => ['JobPosting'],
     'Sonstige' => ['Animal'],
 ];
 if ($isLegacySchemaType) {

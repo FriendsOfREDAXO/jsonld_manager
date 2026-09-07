@@ -113,6 +113,30 @@ final class DynamicFieldMapper
                     'closes' => 'Schließt (HH:MM)',
                 ],
             ],
+            'hiringOrganization' => [
+                'type' => 'Organization',
+                'label' => 'Arbeitgeber',
+                'fields' => [
+                    'name' => 'Name des Arbeitgebers',
+                    'url' => 'Website-URL',
+                ],
+            ],
+            'jobLocation' => [
+                'type' => 'Place',
+                'label' => 'Arbeitsort',
+                'fields' => array_merge(['name' => 'Name des Standorts'], $addressFields),
+            ],
+            'baseSalary' => [
+                'type' => 'MonetaryAmount',
+                'label' => 'Gehalt',
+                'fields' => [
+                    'value' => 'Betrag (z. B. 45000)',
+                    'minValue' => 'Von (z. B. 42000)',
+                    'maxValue' => 'Bis (z. B. 52000)',
+                    'currency' => 'Währung (ISO-Code, z. B. EUR)',
+                    'unitText' => 'Zeiteinheit (HOUR/DAY/WEEK/MONTH/YEAR)',
+                ],
+            ],
         ];
     }
 
@@ -226,6 +250,19 @@ final class DynamicFieldMapper
                 return $objectType === 'Person'
                     ? SchemaHelper::person($nameString, $urlString, $fields)
                     : SchemaHelper::organization($nameString, $urlString, $fields);
+
+            case 'MonetaryAmount':
+                $value = $fields['value'] ?? null;
+                $currency = $fields['currency'] ?? $fields['priceCurrency'] ?? 'EUR';
+                $unitText = $fields['unitText'] ?? null;
+                $extra = array_intersect_key($fields, array_flip(['minValue', 'maxValue']));
+
+                return SchemaHelper::monetaryAmount(
+                    is_scalar($value) && !is_bool($value) ? $value : null,
+                    is_scalar($currency) ? (string) $currency : 'EUR',
+                    is_scalar($unitText) ? (string) $unitText : null,
+                    $extra
+                );
 
             case 'Place':
                 $name = $fields['name'] ?? null;

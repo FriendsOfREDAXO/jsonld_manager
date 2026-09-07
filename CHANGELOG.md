@@ -1,14 +1,20 @@
 # Changelog
 
-## Unreleased
+## v1.1.0 (07. September 2026)
+
+Danke an [@skerbis](https://github.com/skerbis) für die Analyse und die Vorarbeit zu den strukturierten Mappings sowie den Hinweis auf die doppelte Schema-Ausgabe (#17).
 
 ### Added
+- Schema-Typ `JobPosting` für dynamische URL-Profile (Gruppe „Stellenanzeigen“): mit `title`, `description`, `datePosted`, `validThrough`, `employmentType`, `jobLocationType`, `industry` und `identifier`. `hiringOrganization` (Organization) und `jobLocation` (Place) werden strukturiert aus mehreren Feldern gebaut; `baseSalary` erzeugt einen `MonetaryAmount` mit `QuantitativeValue` aus Betrag oder Von/Bis-Spanne, Währung und Zeiteinheit (`HOUR`/`DAY`/`WEEK`/`MONTH`/`YEAR`).
+- `SchemaHelper::monetaryAmount()` baut valide `MonetaryAmount`-Objekte (Betrag/Spanne + Währung + Zeiteinheit als `QuantitativeValue`).
 - `SchemaHelper` (`FriendsOfRedaxo\JsonLdManager\SchemaHelper`): wiederverwendbare Helfer für valide Schema.org-Teilobjekte (`offer()`, `openingHoursSpecification()`, `postalAddress()`, `contactPoint()`, `geoCoordinates()`, `aggregateRating()`, `brand()`, `organization()`, `person()`, `place()`, `question()`, `faqPage()`, `itemList()`), inkl. Normalisierung von Preisen (`12,50 €` → `12.50`), Verfügbarkeiten (`InStock`, `ja`/`nein`, `1`/`0` → Schema.org-URL), Wochentagen (`Mo`, `Montag` → `Monday`) und Uhrzeiten.
 - Strukturierte Feld-Zuordnung für dynamische URL-Profile: `offers`, `brand`, `aggregateRating`, `address`, `contactPoint`, `location`, `organizer`, `provider`, `author` und `openingHoursSpecification` können in der Backend-UI per „Strukturiert“ aus mehreren YForm-Feldern zu einem gültigen Teilobjekt (`Offer`, `PostalAddress`, `Place`, `OpeningHoursSpecification`, …) zusammengesetzt werden. Neue Mapping-Formate `{"type":"nested","fields":{…}}` und `{"type":"opening_hours","rows":[…]}` (`Mapping\DynamicFieldMapper`); die Vorschau zeigt das verschachtelte Ergebnis.
 - Template-Funktionen für mehrzeilige Inhalte: `jsonld_render_faq()` fasst alle passenden YForm-Zeilen zu einem `FAQPage`-Schema mit `mainEntity`-Array zusammen, `jsonld_render_item_list()` erzeugt `ItemList`/`CollectionPage` für Übersichtsseiten, `jsonld_render_schema()` rendert ein beliebiges Schema-Array als Script-Tag inkl. Debug-Overlay (`DynamicContent`).
 - Weitere Properties in der dynamischen Zuordnung: `Product.aggregateRating`/`url`, `LocalBusiness.openingHoursSpecification`/`url`/`priceRange`, `Event.offers`/`url`, `Service.offers`.
 
 ### Changed
+- Dynamische URL-Profile geben ihr Schema nur noch einmal aus (#17): Der separate `generateDynamicJsonLd()`-Aufruf in `boot.php` entfällt, das Schema entsteht ausschließlich über `JsonLdGenerator::generateDynamicSchema()` im `@graph` neben Organization/WebSite. Damit stimmen Frontend-Ausgabe und Backend-Vorschau überein. `generateDynamicJsonLd()` bleibt `@deprecated` für manuelle Template-Einbindung erhalten.
+- Die Feldauflösung im Generator übernimmt jetzt die bisher nur im separaten Pfad vorhandene Logik: `image`/`photo` aus YForm-Feldern werden zu absoluten Medien-URLs aufgelöst (YRewrite-fähig), und jedes dynamische Schema erhält ein `@id` mit der aktuellen URL.
 - `FAQPage` wird für dynamische URL-Profile nicht mehr angeboten, da pro Datensatz nur ein Schema-Objekt entsteht; bestehende Zuordnungen bleiben mit Warnhinweis bearbeitbar. Für FAQ-Seiten ist `jsonld_render_faq()` vorgesehen.
 - Feld-Mappings werden beim Speichern serverseitig auf bekannte Formate, gültige Property- und Spaltennamen reduziert.
 - `PostalAddress`, `ContactPoint` und `GeoCoordinates` in Organization- und LocalBusiness-Schemas werden über `SchemaHelper` gebaut (Konsolidierung); `GeoCoordinates` werden nur noch ausgegeben, wenn Breiten- und Längengrad numerisch und ungleich 0 sind.

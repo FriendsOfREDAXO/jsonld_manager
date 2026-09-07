@@ -3,8 +3,14 @@
 namespace FriendsOfRedaxo\JsonLdManager {
 
 /**
- * Dynamisches JSON-LD für URL-Profile generieren
- * 
+ * Dynamisches JSON-LD für URL-Profile generieren.
+ *
+ * @deprecated Wird von der automatischen Ausgabe (boot.php) nicht mehr genutzt.
+ * Das Schema für dynamische URL-Profile erzeugt jetzt ausschließlich
+ * JsonLdGenerator::generateDynamicSchema() als Teil des @graph, damit es nicht
+ * doppelt im <head> landet und Frontend/Backend-Vorschau übereinstimmen.
+ * Die Funktion bleibt für manuelle Einbindung im Template erhalten.
+ *
  * @param int|string $profileId ID des URL-Profils
  * @param int|string $dataId ID des Datensatzes
  * @return string JSON-LD Script oder leer

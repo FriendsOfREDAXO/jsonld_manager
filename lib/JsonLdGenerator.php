@@ -1408,18 +1408,23 @@ class JsonLdGenerator
                     continue;
                 }
 
-                $resolvedValue = self::resolveMappingValue($mapping, $dataset, $yformTableName, $articleId, $clangId, $isDebugMode);
-                
+                $resolvedValue = self::resolveMappingValue($mapping, $dataset, $yformTableName, $articleId, $clangId, $isDebugMode, (string) $property);
+
                 if ($resolvedValue !== null && $resolvedValue !== '') {
                     $schema[$property] = $resolvedValue;
                 }
             }
-            
+
             // @ID für Verlinkungen
             if ($schemaType === 'NewsArticle') {
                 $schema['@id'] = $schema['url'] . '#' . strtolower($schemaType);
             }
-            
+
+            // Entität stabil an die aktuelle URL binden (bislang nur separater Ausgabepfad)
+            if (!isset($schema['@id']) && is_string($schema['url']) && $schema['url'] !== '') {
+                $schema['@id'] = $schema['url'];
+            }
+
             return $schema;
             
         } catch (Exception $e) {
@@ -1488,7 +1493,7 @@ class JsonLdGenerator
      * @param array<string, mixed> $mapping
      * @param array<string, mixed>|null $dataset
      */
-    private static function resolveMappingValue(array $mapping, ?array $dataset, ?string $yformTableName, int $articleId, int $clangId, bool $isDebugMode): mixed
+    private static function resolveMappingValue(array $mapping, ?array $dataset, ?string $yformTableName, int $articleId, int $clangId, bool $isDebugMode, ?string $property = null): mixed
     {
         if (!isset($mapping['type'])) {
             return null;
@@ -1516,7 +1521,7 @@ class JsonLdGenerator
                 $valueKey = (string) $value;
                 if (null !== $dataset && isset($dataset[$valueKey])) {
                     $fieldValue = $dataset[$valueKey];
-                    
+
                     if ($isDebugMode) {
                         self::debugLog('Feld-Wert über Dataset-Array aufgelöst', [
                             'field' => $value,
@@ -1524,8 +1529,8 @@ class JsonLdGenerator
                             'method' => 'dataset[$field]'
                         ]);
                     }
-                    
-                    return $fieldValue;
+
+                    return self::resolveMediaValue($property, $fieldValue);
                 }
                 
                 // Fallback: GET-Parameter
@@ -1541,10 +1546,34 @@ class JsonLdGenerator
                 
                 break;
         }
-        
+
         return null;
     }
-    
+
+    /**
+     * Wandelt einen Medien-Dateinamen (image/photo) in eine absolute Medien-URL um.
+     * Bereits absolute URLs oder Pfade bleiben unverändert; Nicht-Medien-Properties
+     * werden unverändert durchgereicht.
+     *
+     * @param mixed $value
+     * @return mixed
+     */
+    private static function resolveMediaValue(?string $property, $value)
+    {
+        if (!in_array($property, ['image', 'photo'], true)) {
+            return $value;
+        }
+        if (!is_string($value) || $value === '' || preg_match('#^(https?:)?//#i', $value) === 1 || $value[0] === '/') {
+            return $value;
+        }
+
+        if (rex_addon::get('yrewrite')->isAvailable() && class_exists('rex_yrewrite')) {
+            return \rex_yrewrite::getFullPath('/media/' . $value);
+        }
+
+        return rex_url::frontend('media/' . $value);
+    }
+
     /**
      * Ermittelt YForm-Tabellenname aus URL-Profil
      * @param array $profile
