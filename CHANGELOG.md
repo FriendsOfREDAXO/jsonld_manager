@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.2.1 (08. Oktober 2026)
+
+### Added
+- Artikelliste (Artikel): Checkboxen mit **Mehrfachauswahl** und den Aktionen „N aktivieren“ / „N deaktivieren“, die erst bei markierten Artikeln erscheinen (#21).
+
+### Changed
+- Artikelliste zeigt nur noch Artikel, deren Template in den Einstellungen für die JSON-LD-Ausgabe aktiv ist (gleiche Prüfung wie im Frontend) (#21).
+- Per Artikel deaktivierte Einträge sind in der Liste abgedunkelt/durchgestrichen, bleiben aber lesbar (#4).
+
+### Fixed
+- Custom-JSON: `@type`, `@id` und `@context` bleiben in verschachtelten Objekten (z. B. `potentialAction`, `EntryPoint`) erhalten; geschützt ist nur noch die Wurzelebene (#20).
+- Das Ausblenden des Tabs „Dynamische URLs“ benötigt keine CSS-Datei mehr, die bei Updates fehlen konnte; Stil wird inline ausgegeben (#22).
+
 ## v1.2.0 (07. September 2026)
 
 ### Added

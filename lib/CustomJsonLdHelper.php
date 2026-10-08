@@ -99,7 +99,9 @@ class CustomJsonLdHelper
                 && !array_is_list($schema[$key])
                 && !array_is_list($value)
             ) {
-                $schema[$key] = self::mergeIntoSchema($schema[$key], $value, $protectedKeys);
+                // Schutz gilt nur für das Wurzelobjekt; verschachtelte Objekte
+                // (z. B. potentialAction) dürfen ihr eigenes @type/@id behalten.
+                $schema[$key] = self::mergeIntoSchema($schema[$key], $value, []);
                 continue;
             }
 
@@ -127,7 +129,8 @@ class CustomJsonLdHelper
                 continue;
             }
 
-            if ($key === '@context' || $key === '@type' || $key === '@id') {
+            // Nur auf Wurzelebene geschützt, in verschachtelten Objekten sind @type/@id/@context erlaubt.
+            if ($depth === 0 && ($key === '@context' || $key === '@type' || $key === '@id')) {
                 $warnings[] = 'Der Schluessel "' . $key . '" wird ignoriert und nicht ueberschrieben.';
                 continue;
             }

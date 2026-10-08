@@ -175,7 +175,8 @@ if (rex::isBackend()) {
 
     // Harte UI-Fallback-Ausblendung, falls REDAXO-Navigation den Tab dennoch rendert
     if ($shouldHideDynamicUrls()) {
-        rex_view::addCssFile(rex_url::addonAssets('jsonld_manager', 'css/hide_dynamic_urls_tab.css'));
+        // Inline statt Asset-Datei: wird bei Updates nicht zuverlässig nach assets/ kopiert (Issue #22)
+        rex_extension::register('PAGE_HEADER', static fn (rex_extension_point $ep) => $ep->getSubject() . '<style>#rex-page-jsonld_manager-dynamic_urls,.rex-page-jsonld_manager-dynamic_urls,a[href*="page=jsonld_manager/dynamic_urls"]{display:none !important;}</style>');
     }
 
     rex_extension::register('PACKAGES_INCLUDED', function() use ($hideDynamicUrlsSubpage, $hideLanguageCopySubpage, $shouldHideDynamicUrls, $shouldHideLanguageCopy): void {

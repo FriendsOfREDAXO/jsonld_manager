@@ -656,3 +656,19 @@ select#branch-selector {
     position: relative;
     z-index: 3;
 }
+
+/* Artikelliste: Mehrfachauswahl und deaktivierte Artikel (Issue #21, #4) */
+.jsonld-bulk-actions {
+    margin-bottom: 10px;
+}
+
+.article-table .article-select {
+    width: 28px;
+    vertical-align: middle;
+}
+
+/* Deaktivierte Artikel nur leicht abdunkeln, Name bleibt gut lesbar */
+.article-table .article-row.article-json-disabled:not(.active) .article-name {
+    opacity: 0.75;
+    text-decoration: line-through;
+}

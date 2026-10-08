@@ -312,6 +312,13 @@ if (DomainConfig::isMultiDomain()) {
     }
 }
 
+// Nur Artikel listen, deren Template in den Einstellungen für die JSON-LD-Ausgabe aktiv ist
+// (gleiche Prüfung wie im Frontend, siehe Issue #21)
+$articles = array_values(array_filter($articles, static function (array $listed) use ($activeClangId): bool {
+    $articleObject = rex_article::get((int) $listed['id'], $activeClangId);
+    return $articleObject instanceof rex_article && jsonld_is_template_output_allowed($articleObject);
+}));
+
 // Wenn kein Artikel ausgewählt, ersten nehmen
 if ($selectedArticleId === 0 && !empty($articles)) {
     $selectedArticleId = (int) $articles[0]['id'];
@@ -355,6 +362,28 @@ if ($func === 'save_custom_json') {
         // Sicherstellen dass die richtige article_id nach POST verwendet wird
         $selectedArticleId = $articleId;
     }
+    }
+} elseif ($func === 'bulk_enable' || $func === 'bulk_disable') {
+    if (!$csrfToken->isValid()) {
+        echo rex_view::error('Sicherheitsprüfung fehlgeschlagen (CSRF). Bitte Seite neu laden und erneut speichern.');
+    } else {
+        // Nur Artikel aus der aktuell angezeigten Liste zulassen
+        $listedIds = array_map('intval', array_column($articles, 'id'));
+        $bulkIds = array_values(array_intersect(array_map('intval', rex_post('article_ids', 'array', [])), $listedIds));
+
+        foreach ($bulkIds as $bulkId) {
+            if ($func === 'bulk_disable') {
+                rex_config::set('jsonld_manager', jsonld_manager_disable_json_key($bulkId, $activeClangId), true);
+            } else {
+                rex_config::remove('jsonld_manager', jsonld_manager_disable_json_key($bulkId, $activeClangId));
+            }
+        }
+
+        if ($bulkIds) {
+            echo rex_view::success(count($bulkIds) . ($func === 'bulk_disable' ? ' Artikel deaktiviert.' : ' Artikel aktiviert.'));
+        } else {
+            echo rex_view::warning('Keine Artikel ausgewählt.');
+        }
     }
 } elseif ($func === 'enable_json') {
     if (!$csrfToken->isValid()) {
@@ -447,7 +476,8 @@ foreach ($articles as $article) {
         }
     }
     
-    $articleListRows .= '<tr class="article-row' . ($isActive ? ' active' : '') . $levelClass . '" onclick="window.location.href=\'?page=jsonld_manager/article&clang=' . (int) $activeClangId . '&article_id=' . $article['id'] . '\'">
+    $articleListRows .= '<tr class="article-row' . ($isActive ? ' active' : '') . ($isJsonDisabled ? ' article-json-disabled' : '') . $levelClass . '" onclick="window.location.href=\'?page=jsonld_manager/article&clang=' . (int) $activeClangId . '&article_id=' . $article['id'] . '\'">
+                            <td class="article-select" onclick="event.stopPropagation();"><input type="checkbox" form="jsonld-bulk-form" name="article_ids[]" value="' . (int) $article['id'] . '" aria-label="Artikel ' . (int) $article['id'] . ' auswählen"></td>
                             <td>
                                 <span class="article-name">' . $indent . htmlspecialchars($article['yrewrite_title'] ?: $article['name']) . '</span>
                                 <span class="article-path">' . $indent . '[ID: ' . (int) $article['id'] . '] ' . htmlspecialchars($articlePath) . '</span>
@@ -457,7 +487,7 @@ foreach ($articles as $article) {
 }
 
 if (empty($articles)) {
-    $articleListRows = '<tr><td colspan="2"><em>Keine Artikel gefunden</em></td></tr>';
+    $articleListRows = '<tr><td colspan="3"><em>Keine Artikel gefunden. Prüfen Sie in den Einstellungen, ob die automatische Ausgabe aktiv und Templates ausgewählt sind.</em></td></tr>';
 }
 
 // HTML in String sammeln für Fragment-System
@@ -511,9 +541,15 @@ $content = LanguageConfig::renderClangTabs($activeClangId) . '
                 <h1 class="panel-title">Artikel auswählen (' . count($articles) . ')</h1>
             </header>
             <div class="panel-body">
+                <form id="jsonld-bulk-form" method="post" class="jsonld-bulk-actions" style="display: none;">
+                    ' . $csrfTokenField . '
+                    <button type="submit" name="func" value="bulk_enable" class="btn btn-default btn-sm"><i class="fa fa-check"></i> <span class="jsonld-bulk-count"></span> aktivieren</button>
+                    <button type="submit" name="func" value="bulk_disable" class="btn btn-default btn-sm"><i class="fa fa-power-off"></i> <span class="jsonld-bulk-count"></span> deaktivieren</button>
+                </form>
                 <table class="table table-striped article-table">
                     <thead>
                         <tr>
+                            <th><input type="checkbox" aria-label="Alle auswählen" onclick="jsonldBulkToggleAll(this.checked)"></th>
                             <th>Artikel</th>
                             <th class="text-right">Status</th>
                         </tr>
@@ -649,6 +685,17 @@ $content = LanguageConfig::renderClangTabs($activeClangId) . '
 <!-- Ende der Bootstrap Row -->
 
 <script>
+function jsonldBulkUpdate() {
+    var n = document.querySelectorAll(".article-select input:checked").length;
+    document.getElementById("jsonld-bulk-form").style.display = n > 0 ? "" : "none";
+    document.querySelectorAll(".jsonld-bulk-count").forEach(function (el) { el.textContent = n; });
+}
+function jsonldBulkToggleAll(checked) {
+    document.querySelectorAll(".article-select input").forEach(function (c) { c.checked = checked; });
+    jsonldBulkUpdate();
+}
+document.querySelectorAll(".article-select input").forEach(function (c) { c.addEventListener("change", jsonldBulkUpdate); });
+
 function toggleCustomJsonEditor() {
     var editor = document.getElementById("custom-json-editor");
     if (editor.style.display === "none") {
