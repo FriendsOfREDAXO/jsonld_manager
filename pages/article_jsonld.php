@@ -603,7 +603,7 @@ $content = LanguageConfig::renderClangTabs($activeClangId) . '
                         </a>
                     </div>
                     
-                    <!-- LocalBusiness Select darunter, auch rechtsbündig -->
+                    <!-- LocalBusiness-Zuordnung für den ausgewählten Artikel -->
                     ' . (function() use ($selectedArticleId, $branchId, $activeClangId): string {
                         $branches = getLocalBusinessBranches();
                             if (count($branches) > 1) {
@@ -619,15 +619,21 @@ $content = LanguageConfig::renderClangTabs($activeClangId) . '
                                 $selected = in_array($branch['id'], $effectiveBranchIds) ? ' selected' : '';
                                 $branchOptions .= '<option value="' . $branch['id'] . '" data-is-main="' . ($branch['is_main'] ? '1' : '0') . '"' . $selected . '>' . htmlspecialchars($branch['name']) . $isMain . '</option>';
                             }
-                            return '<div style="display: flex; align-items: center; gap: 8px;">
-                                        <label for="branch-selector" style="margin: 0; font-weight: bold; font-size: 12px; white-space: nowrap;">LocalBusiness Standorte:</label>
-                                        <select id="branch-selector" class="form-control selectpicker" data-live-search="true" data-size="10" multiple>
+                            return '<div style="text-align: right;">
+                                        <label for="branch-selector" style="display: block; margin: 0 0 5px; font-weight: bold;">LocalBusiness-Standorte für diesen Artikel:</label>
+                                        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
+                                            <select id="branch-selector" class="form-control selectpicker" data-live-search="true" data-size="10" multiple>
                                             ' . $branchOptions . '
-                                        </select>
-                                        <button type="button" class="btn btn-success btn-sm" id="branch-save-button" onclick="saveBranchSelection()">
-                                            Speichern
-                                        </button>
+                                            </select>
+                                            <button type="button" class="btn btn-success btn-sm" id="branch-save-button" onclick="saveBranchSelection()">
+                                                Speichern
+                                            </button>
+                                        </div>
+                                        <small class="help-block" style="margin: 5px 0 0;">Artikel links auswählen, hier einen oder mehrere Standorte wählen und speichern.</small>
                                     </div>';
+                        }
+                        if (count($branches) === 1) {
+                            return '<div class="text-muted" style="font-size: 12px;">Der einzige verfügbare LocalBusiness-Standort wird automatisch verwendet.</div>';
                         }
                         return '';
                     })() . '
