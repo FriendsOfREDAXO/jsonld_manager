@@ -38,6 +38,8 @@ Dort sind vor allem diese Möglichkeiten wichtig:
 - eigenes Custom-JSON für einen Artikel hinterlegen
 - JSON-LD für einen Artikel bewusst deaktivieren
 
+Die Standortzuordnung findest du unter `JSON-LD Manager` → `Artikel`: Wähle links einen Artikel aus und ordne rechts oben über der JSON-LD-Vorschau einen oder mehrere `LocalBusiness`-Standorte zu. Mit `Speichern` wird die Auswahl übernommen. Gibt es nur einen verfügbaren Standort, wird dieser automatisch verwendet.
+
 Nicht jede Seite sollte automatisch JSON-LD ausgeben. Das ist auch aus SEO-Sicht wichtig.
 
 Seiten können zum Beispiel bewusst ohne JSON-LD bleiben, wenn:
