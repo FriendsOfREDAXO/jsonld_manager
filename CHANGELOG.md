@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.2.2 (19. November 2026)
+
+### Changed
+- Organization: Land als Freitext mit Vorschlägen für alle 249 ISO-3166-1-Ländercodes sowie Kosovo (`XK`); vorhandene Werte bleiben erhalten (#25).
+- Organization: Deutschland, Österreich und Schweiz stehen am Anfang der Ländervorschläge. Äußere Leerzeichen werden beim Speichern entfernt; eine leere Eingabe verwendet weiterhin `DE`.
+- Artikel: LocalBusiness-Standortzuordnung mit klarer Beschriftung und Hilfetext; Hinweis bei einem einzigen verfügbaren Standort (#24).
+
 ## v1.2.1 (08. Oktober 2026)
 
 ### Added

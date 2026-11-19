@@ -66,7 +66,7 @@ if ($organizationAction === 'save') {
             'streetAddress' => rex_post('org_street', 'string', ''),
             'addressLocality' => rex_post('org_city', 'string', ''),
             'postalCode' => rex_post('org_postal', 'string', ''),
-            'addressCountry' => rex_post('org_country', 'string', 'DE'),
+            'addressCountry' => trim(rex_post('org_country', 'string', 'DE')) ?: 'DE',
         ],
         'contactPoint' => [
             'telephone' => rex_post('org_phone', 'string', ''),
@@ -417,12 +417,79 @@ echo '          </div>';
 
 echo '          <div class="form-group">';
 echo '            <label for="org_country">Land:</label>';
-echo '            <select name="org_country" id="org_country" class="form-control selectpicker" data-live-search="true" data-size="8">';
-$country = $organizationConfig['address']['addressCountry'] ?? 'DE';
-echo '              <option value="DE"' . ($country === 'DE' ? ' selected' : '') . '>Deutschland</option>';
-echo '              <option value="AT"' . ($country === 'AT' ? ' selected' : '') . '>Österreich</option>';
-echo '              <option value="CH"' . ($country === 'CH' ? ' selected' : '') . '>Schweiz</option>';
-echo '            </select>';
+$country = trim((string) ($organizationConfig['address']['addressCountry'] ?? 'DE'));
+$countryHints = [
+    'DE' => 'Deutschland', 'AT' => 'Österreich', 'CH' => 'Schweiz', 'AF' => 'Afghanistan',
+    'EG' => 'Ägypten', 'AX' => 'Ålandinseln', 'AL' => 'Albanien', 'DZ' => 'Algerien',
+    'AS' => 'Amerikanisch-Samoa', 'VI' => 'Amerikanische Jungferninseln', 'UM' => 'Amerikanische Überseeinseln', 'AD' => 'Andorra',
+    'AO' => 'Angola', 'AI' => 'Anguilla', 'AQ' => 'Antarktis', 'AG' => 'Antigua und Barbuda',
+    'GQ' => 'Äquatorialguinea', 'AR' => 'Argentinien', 'AM' => 'Armenien', 'AW' => 'Aruba',
+    'AZ' => 'Aserbaidschan', 'ET' => 'Äthiopien', 'AU' => 'Australien', 'BS' => 'Bahamas',
+    'BH' => 'Bahrain', 'BD' => 'Bangladesch', 'BB' => 'Barbados', 'BY' => 'Belarus',
+    'BE' => 'Belgien', 'BZ' => 'Belize', 'BJ' => 'Benin', 'BM' => 'Bermuda',
+    'BT' => 'Bhutan', 'BO' => 'Bolivien', 'BQ' => 'Bonaire, Sint Eustatius und Saba', 'BA' => 'Bosnien und Herzegowina',
+    'BW' => 'Botsuana', 'BV' => 'Bouvetinsel', 'BR' => 'Brasilien', 'VG' => 'Britische Jungferninseln',
+    'IO' => 'Britisches Territorium im Indischen Ozean', 'BN' => 'Brunei Darussalam', 'BG' => 'Bulgarien', 'BF' => 'Burkina Faso',
+    'BI' => 'Burundi', 'CL' => 'Chile', 'CN' => 'China', 'CK' => 'Cookinseln',
+    'CR' => 'Costa Rica', 'CI' => 'Côte d’Ivoire', 'CW' => 'Curaçao', 'DK' => 'Dänemark',
+    'DM' => 'Dominica', 'DO' => 'Dominikanische Republik', 'DJ' => 'Dschibuti', 'EC' => 'Ecuador',
+    'SV' => 'El Salvador', 'ER' => 'Eritrea', 'EE' => 'Estland', 'FK' => 'Falklandinseln',
+    'FO' => 'Färöer', 'FJ' => 'Fidschi', 'FI' => 'Finnland', 'FR' => 'Frankreich',
+    'GF' => 'Französisch-Guayana', 'PF' => 'Französisch-Polynesien', 'TF' => 'Französische Süd- und Antarktisgebiete', 'GA' => 'Gabun',
+    'GM' => 'Gambia', 'GE' => 'Georgien', 'GH' => 'Ghana', 'GI' => 'Gibraltar',
+    'GD' => 'Grenada', 'GR' => 'Griechenland', 'GL' => 'Grönland', 'GP' => 'Guadeloupe',
+    'GU' => 'Guam', 'GT' => 'Guatemala', 'GG' => 'Guernsey', 'GN' => 'Guinea',
+    'GW' => 'Guinea-Bissau', 'GY' => 'Guyana', 'HT' => 'Haiti', 'HM' => 'Heard und McDonaldinseln',
+    'HN' => 'Honduras', 'IN' => 'Indien', 'ID' => 'Indonesien', 'IQ' => 'Irak',
+    'IR' => 'Iran', 'IE' => 'Irland', 'IS' => 'Island', 'IM' => 'Isle of Man',
+    'IL' => 'Israel', 'IT' => 'Italien', 'JM' => 'Jamaika', 'JP' => 'Japan',
+    'YE' => 'Jemen', 'JE' => 'Jersey', 'JO' => 'Jordanien', 'KY' => 'Kaimaninseln',
+    'KH' => 'Kambodscha', 'CM' => 'Kamerun', 'CA' => 'Kanada', 'CV' => 'Kap Verde',
+    'KZ' => 'Kasachstan', 'QA' => 'Katar', 'KE' => 'Kenia', 'KG' => 'Kirgisistan',
+    'KI' => 'Kiribati', 'CC' => 'Kokosinseln', 'CO' => 'Kolumbien', 'KM' => 'Komoren',
+    'CG' => 'Kongo-Brazzaville', 'CD' => 'Kongo-Kinshasa', 'XK' => 'Kosovo', 'HR' => 'Kroatien',
+    'CU' => 'Kuba', 'KW' => 'Kuwait', 'LA' => 'Laos', 'LS' => 'Lesotho',
+    'LV' => 'Lettland', 'LB' => 'Libanon', 'LR' => 'Liberia', 'LY' => 'Libyen',
+    'LI' => 'Liechtenstein', 'LT' => 'Litauen', 'LU' => 'Luxemburg', 'MG' => 'Madagaskar',
+    'MW' => 'Malawi', 'MY' => 'Malaysia', 'MV' => 'Malediven', 'ML' => 'Mali',
+    'MT' => 'Malta', 'MA' => 'Marokko', 'MH' => 'Marshallinseln', 'MQ' => 'Martinique',
+    'MR' => 'Mauretanien', 'MU' => 'Mauritius', 'YT' => 'Mayotte', 'MK' => 'Mazedonien',
+    'MX' => 'Mexiko', 'FM' => 'Mikronesien', 'MC' => 'Monaco', 'MN' => 'Mongolei',
+    'ME' => 'Montenegro', 'MS' => 'Montserrat', 'MZ' => 'Mosambik', 'MM' => 'Myanmar',
+    'NA' => 'Namibia', 'NR' => 'Nauru', 'NP' => 'Nepal', 'NC' => 'Neukaledonien',
+    'NZ' => 'Neuseeland', 'NI' => 'Nicaragua', 'NL' => 'Niederlande', 'NE' => 'Niger',
+    'NG' => 'Nigeria', 'NU' => 'Niue', 'KP' => 'Nordkorea', 'MP' => 'Nördliche Marianen',
+    'NF' => 'Norfolkinsel', 'NO' => 'Norwegen', 'OM' => 'Oman', 'PK' => 'Pakistan',
+    'PS' => 'Palästinensische Autonomiegebiete', 'PW' => 'Palau', 'PA' => 'Panama', 'PG' => 'Papua-Neuguinea',
+    'PY' => 'Paraguay', 'PE' => 'Peru', 'PH' => 'Philippinen', 'PN' => 'Pitcairninseln',
+    'PL' => 'Polen', 'PT' => 'Portugal', 'PR' => 'Puerto Rico', 'MD' => 'Republik Moldau',
+    'RE' => 'Réunion', 'RW' => 'Ruanda', 'RO' => 'Rumänien', 'RU' => 'Russland',
+    'SB' => 'Salomonen', 'ZM' => 'Sambia', 'WS' => 'Samoa', 'SM' => 'San Marino',
+    'ST' => 'São Tomé und Príncipe', 'SA' => 'Saudi-Arabien', 'SE' => 'Schweden', 'SN' => 'Senegal',
+    'RS' => 'Serbien', 'SC' => 'Seychellen', 'SL' => 'Sierra Leone', 'ZW' => 'Simbabwe',
+    'SG' => 'Singapur', 'SX' => 'Sint Maarten', 'SK' => 'Slowakei', 'SI' => 'Slowenien',
+    'SO' => 'Somalia', 'MO' => 'Sonderverwaltungsregion Macau', 'HK' => 'Sonderverwaltungszone Hongkong', 'ES' => 'Spanien',
+    'LK' => 'Sri Lanka', 'BL' => 'St. Barthélemy', 'SH' => 'St. Helena', 'KN' => 'St. Kitts und Nevis',
+    'LC' => 'St. Lucia', 'MF' => 'St. Martin', 'PM' => 'St. Pierre und Miquelon', 'VC' => 'St. Vincent und die Grenadinen',
+    'ZA' => 'Südafrika', 'SD' => 'Sudan', 'GS' => 'Südgeorgien und die Südlichen Sandwichinseln', 'KR' => 'Südkorea',
+    'SS' => 'Südsudan', 'SR' => 'Suriname', 'SJ' => 'Svalbard und Jan Mayen', 'SZ' => 'Swasiland',
+    'SY' => 'Syrien', 'TJ' => 'Tadschikistan', 'TW' => 'Taiwan', 'TZ' => 'Tansania',
+    'TH' => 'Thailand', 'TL' => 'Timor-Leste', 'TG' => 'Togo', 'TK' => 'Tokelau',
+    'TO' => 'Tonga', 'TT' => 'Trinidad und Tobago', 'TD' => 'Tschad', 'CZ' => 'Tschechische Republik',
+    'TN' => 'Tunesien', 'TR' => 'Türkei', 'TM' => 'Turkmenistan', 'TC' => 'Turks- und Caicosinseln',
+    'TV' => 'Tuvalu', 'UG' => 'Uganda', 'UA' => 'Ukraine', 'HU' => 'Ungarn',
+    'UY' => 'Uruguay', 'UZ' => 'Usbekistan', 'VU' => 'Vanuatu', 'VA' => 'Vatikanstadt',
+    'VE' => 'Venezuela', 'AE' => 'Vereinigte Arabische Emirate', 'US' => 'Vereinigte Staaten', 'GB' => 'Vereinigtes Königreich',
+    'VN' => 'Vietnam', 'WF' => 'Wallis und Futuna', 'CX' => 'Weihnachtsinsel', 'EH' => 'Westsahara',
+    'CF' => 'Zentralafrikanische Republik', 'CY' => 'Zypern',
+]; // ISO 3166-1 alpha-2 plus XK (Kosovo); Freitext bleibt möglich.
+echo '            <input type="text" name="org_country" id="org_country" class="form-control" list="org_country_list" value="' . htmlspecialchars($country) . '" placeholder="DE" autocomplete="off">';
+echo '            <datalist id="org_country_list">';
+foreach ($countryHints as $code => $label) {
+    echo '              <option value="' . $code . '">' . htmlspecialchars($label) . '</option>';
+}
+echo '            </datalist>';
+echo '            <small class="help-block" style="color: #999;">ISO-Ländercode (z. B. DE, AT, CH, IT, CL, MX). Alle Länder erscheinen als Vorschlag beim Tippen (Code oder Name), freie Eingabe ist ebenfalls möglich; bereits gespeicherte Werte bleiben erhalten.</small>';
 echo '          </div>';
 
 echo '        </div>';

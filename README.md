@@ -27,6 +27,10 @@ Wenn du ein lokales Unternehmen mit realem Standort hast, ist es sinnvoll, minde
 
 Diese Angaben sind die Grundlage für die spätere Ausgabe auf den Artikeln.
 
+Im `Organization Schema` erlaubt das Feld `Land` sowohl Ländercodes als auch Freitext. Die Vorschläge enthalten alle 249 ISO-3166-1-Ländercodes sowie `XK` (Kosovo), jeweils mit deutschem Namen. Deutschland, Österreich und die Schweiz stehen zuerst. Bestehende Werte bleiben im Feld erhalten; beim Speichern werden äußere Leerzeichen entfernt und eine leere Eingabe wird als `DE` gespeichert.
+
+Beispiele für `Land`: `CH` für die Schweiz oder `CL` für Chile. Ein ausgeschriebener Name wie `Chile` kann ebenfalls als Freitext gespeichert werden.
+
 ### 2. Danach die einzelnen Artikel prüfen
 
 Anschließend kannst du pro Artikel festlegen, wie mit JSON-LD umgegangen werden soll.
